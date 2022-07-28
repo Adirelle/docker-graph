@@ -6,8 +6,8 @@ type (
 	NetworkID string
 
 	Network struct {
-		ID   NetworkID
-		Name string
+		ID   NetworkID `json:"id"`
+		Name string    `json:"name"`
 	}
 
 	NetworkProvider interface {

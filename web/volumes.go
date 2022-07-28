@@ -6,8 +6,8 @@ type (
 	VolumeID string
 
 	Volume struct {
-		ID   VolumeID
-		Name string
+		ID   VolumeID `json:"id"`
+		Name string   `json:"name"`
 	}
 
 	VolumeProvider interface {

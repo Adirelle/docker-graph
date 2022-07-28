@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"strings"
 
 	"github.com/adirelle/docker-graph/web"
 	"github.com/docker/docker/api/types"
@@ -46,18 +47,34 @@ func (e *Endpoint) GetContainer(id web.ContainerID, ctx context.Context) (ctn *w
 	defer conn.Close()
 	var data types.ContainerJSON
 	if data, err = conn.ContainerInspect(ctx, string(id)); err == nil {
-		ctn = &web.Container{ID: id, Name: data.Name, Status: data.State.Status}
+		ctn = &web.Container{
+			ID:      id,
+			Name:    data.Name,
+			Status:  data.State.Status,
+			Project: data.Config.Labels["com.docker.compose.project"],
+			Service: data.Config.Labels["com.docker.compose.service"],
+		}
+
+		baseDir := ""
+		if workDir, found := data.Config.Labels["com.docker.compose.project.working_dir"]; found {
+			baseDir = workDir + "/"
+		}
+
 		for _, net := range data.NetworkSettings.Networks {
 			ctn.Networks = append(ctn.Networks, web.NetworkID(net.NetworkID))
 		}
 		for _, mnt := range data.Mounts {
-			ctn.Mounts = append(ctn.Mounts, web.Mount{
+			webMount := web.Mount{
 				Type:        string(mnt.Type),
 				Name:        mnt.Name,
 				Source:      mnt.Source,
 				Destination: mnt.Destination,
 				ReadWrite:   mnt.RW,
-			})
+			}
+			if webMount.Type == "bind" && baseDir != "" && strings.HasPrefix(webMount.Source, baseDir) {
+				webMount.Source = "./" + webMount.Source[len(baseDir):]
+			}
+			ctn.Mounts = append(ctn.Mounts, webMount)
 		}
 	}
 	return
