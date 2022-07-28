@@ -15,11 +15,16 @@ import (
 
 type (
 	Server struct {
-		events     EventSource
-		containers ContainerProvider
-		networks   NetworkProvider
-		address    string
-		devMode    bool
+		provider    Provider
+		eventSource EventSource
+		address     string
+		devMode     bool
+	}
+
+	Provider interface {
+		ContainerProvider
+		NetworkProvider
+		VolumeProvider
 	}
 )
 
@@ -30,13 +35,12 @@ var (
 	assets embed.FS
 )
 
-func NewServer(address string, devMode bool, events EventSource, containers ContainerProvider, networks NetworkProvider) *Server {
+func NewServer(address string, devMode bool, eventSource EventSource, provider Provider) *Server {
 	return &Server{
-		events:     events,
-		containers: containers,
-		networks:   networks,
-		devMode:    devMode,
-		address:    address,
+		provider:    provider,
+		eventSource: eventSource,
+		devMode:     devMode,
+		address:     address,
 	}
 }
 
@@ -64,10 +68,8 @@ func (s *Server) createApp() (app *fiber.App) {
 
 	app.Get("/api/containers", s.listContainers)
 	app.Get("/api/containers/:id", s.getContainer)
-
-	app.Get("/api/networks", s.listNetworks)
 	app.Get("/api/networks/:id", s.getNetwork)
-
+	app.Get("/api/volumes/:id", s.getVolume)
 	app.Get("/api/events", s.streamEvents)
 
 	if s.devMode {
@@ -84,7 +86,7 @@ func (s *Server) streamEvents(ctx *fiber.Ctx) error {
 	if lastEventIdHeader, found := ctx.GetReqHeaders()["Last-Event-ID"]; found {
 		lastEventId = parseEventID(lastEventIdHeader)
 	}
-	events, stop, err := s.events.Listen(lastEventId)
+	events, stop, err := s.eventSource.Listen(lastEventId)
 	if err != nil {
 		return err
 	}
@@ -107,7 +109,7 @@ func (s *Server) json(ctx *fiber.Ctx, payload any) error {
 }
 
 func (s *Server) listContainers(ctx *fiber.Ctx) error {
-	if ids, err := s.containers.ListContainerIDs(ctx.Context()); err == nil {
+	if ids, err := s.provider.ListContainerIDs(ctx.Context()); err == nil {
 		return s.json(ctx, struct{ Containers []ContainerID }{ids})
 	} else {
 		return err
@@ -116,16 +118,8 @@ func (s *Server) listContainers(ctx *fiber.Ctx) error {
 
 func (s *Server) getContainer(ctx *fiber.Ctx) error {
 	id := ContainerID(ctx.Params("id"))
-	if container, err := s.containers.GetContainer(id, ctx.Context()); err == nil {
+	if container, err := s.provider.GetContainer(id, ctx.Context()); err == nil {
 		return s.json(ctx, container)
-	} else {
-		return err
-	}
-}
-
-func (s *Server) listNetworks(ctx *fiber.Ctx) error {
-	if ids, err := s.networks.ListNetworkIDs(ctx.Context()); err == nil {
-		return s.json(ctx, struct{ Networks []NetworkID }{ids})
 	} else {
 		return err
 	}
@@ -133,8 +127,17 @@ func (s *Server) listNetworks(ctx *fiber.Ctx) error {
 
 func (s *Server) getNetwork(ctx *fiber.Ctx) error {
 	id := NetworkID(ctx.Params("id"))
-	if network, err := s.networks.GetNetwork(id, ctx.Context()); err == nil {
+	if network, err := s.provider.GetNetwork(id, ctx.Context()); err == nil {
 		return s.json(ctx, network)
+	} else {
+		return err
+	}
+}
+
+func (s *Server) getVolume(ctx *fiber.Ctx) error {
+	id := VolumeID(ctx.Params("id"))
+	if volume, err := s.provider.GetVolume(id, ctx.Context()); err == nil {
+		return s.json(ctx, volume)
 	} else {
 		return err
 	}

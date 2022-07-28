@@ -11,7 +11,6 @@ type (
 	}
 
 	NetworkProvider interface {
-		ListNetworkIDs(context.Context) ([]NetworkID, error)
 		GetNetwork(NetworkID, context.Context) (*Network, error)
 	}
 )

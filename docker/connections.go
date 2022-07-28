@@ -12,6 +12,7 @@ type (
 	Connection interface {
 		client.ContainerAPIClient
 		client.NetworkAPIClient
+		client.VolumeAPIClient
 		client.SystemAPIClient
 		io.Closer
 	}

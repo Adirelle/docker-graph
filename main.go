@@ -30,7 +30,7 @@ func main() {
 	events := docker.NewStreamFactory(connFactory)
 	sup.Add(events)
 
-	webserver := web.NewServer(httpAddr, devMode, events, endpoint, endpoint)
+	webserver := web.NewServer(httpAddr, devMode, events, endpoint)
 	sup.Add(webserver)
 
 	if err := sup.Serve(ctx); err != nil {

@@ -10,6 +10,15 @@ type (
 		Name     string
 		Status   string
 		Networks []NetworkID
+		Mounts   []Mount
+	}
+
+	Mount struct {
+		Name        string
+		Type        string
+		Source      string
+		Destination string
+		ReadWrite   bool
 	}
 
 	ContainerProvider interface {

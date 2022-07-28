@@ -16,6 +16,7 @@ type (
 var (
 	_ web.ContainerProvider = (*Endpoint)(nil)
 	_ web.NetworkProvider   = (*Endpoint)(nil)
+	_ web.VolumeProvider    = (*Endpoint)(nil)
 )
 
 func NewEndpoint(connFactory ConnectionFactory) *Endpoint {
@@ -49,20 +50,14 @@ func (e *Endpoint) GetContainer(id web.ContainerID, ctx context.Context) (ctn *w
 		for _, net := range data.NetworkSettings.Networks {
 			ctn.Networks = append(ctn.Networks, web.NetworkID(net.NetworkID))
 		}
-	}
-	return
-}
-
-func (e *Endpoint) ListNetworkIDs(ctx context.Context) (ids []web.NetworkID, err error) {
-	var conn Connection
-	if conn, err = e.connFactory.CreateConn(); err != nil {
-		return
-	}
-	defer conn.Close()
-	var networks []types.NetworkResource
-	if networks, err = conn.NetworkList(ctx, types.NetworkListOptions{}); err == nil {
-		for _, network := range networks {
-			ids = append(ids, web.NetworkID(network.ID))
+		for _, mnt := range data.Mounts {
+			ctn.Mounts = append(ctn.Mounts, web.Mount{
+				Type:        string(mnt.Type),
+				Name:        mnt.Name,
+				Source:      mnt.Source,
+				Destination: mnt.Destination,
+				ReadWrite:   mnt.RW,
+			})
 		}
 	}
 	return
@@ -77,6 +72,19 @@ func (e *Endpoint) GetNetwork(id web.NetworkID, ctx context.Context) (net *web.N
 	var data types.NetworkResource
 	if data, err = conn.NetworkInspect(ctx, string(id), types.NetworkInspectOptions{}); err == nil {
 		net = &web.Network{ID: id, Name: data.Name}
+	}
+	return
+}
+
+func (e *Endpoint) GetVolume(id web.VolumeID, ctx context.Context) (vol *web.Volume, err error) {
+	var conn Connection
+	if conn, err = e.connFactory.CreateConn(); err != nil {
+		return
+	}
+	defer conn.Close()
+	var data types.Volume
+	if data, err = conn.VolumeInspect(ctx, string(id)); err == nil {
+		vol = &web.Volume{ID: id, Name: data.Name}
 	}
 	return
 }
