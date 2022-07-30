@@ -4,36 +4,112 @@ import (
 	"context"
 	"flag"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 
+	"github.com/adirelle/docker-graph/api"
 	"github.com/adirelle/docker-graph/docker"
-	"github.com/adirelle/docker-graph/web"
 	"github.com/docker/docker/client"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/favicon"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/thejerf/suture/v4"
 )
 
+type (
+	Server struct {
+		app     *fiber.App
+		address string
+	}
+)
+
+var (
+	_ suture.Service = (*Server)(nil)
+
+	Supervisor = suture.NewSimple("docker-graph")
+	Debug      = false
+	Verbose    = false
+	Quiet      = false
+)
+
 func main() {
-	devMode := false
-	httpAddr := ":80"
-	flag.BoolVar(&devMode, "dev", false, "Enable development mode")
-	flag.StringVar(&httpAddr, "bind", ":8080", "Listening address")
+	flag.BoolVar(&Debug, "debug", false, "Enable ")
+	flag.BoolVar(&Verbose, "verbose", false, "Be more verbose")
+	flag.BoolVar(&Quiet, "quiet", false, "Disable all output messages but warnings and errors")
+	httpAddr := flag.String("bind", ":8080", "Listening address")
 	flag.Parse()
 
-	sup := suture.NewSimple("docker-graph")
+	Quiet = Quiet && !Debug
+	Verbose = (Verbose || Debug) && !Quiet
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Kill, os.Interrupt)
 
 	connFactory := docker.NewConnectionPool(docker.MakeBasicConnectionFactory(client.FromEnv))
-	endpoint := docker.NewEndpoint(connFactory)
+	endpoint := docker.NewRESTEndpoint(connFactory)
 
 	events := docker.NewStreamFactory(connFactory)
-	sup.Add(events)
+	Supervisor.Add(events)
 
-	webserver := web.NewServer(httpAddr, devMode, events, endpoint)
-	sup.Add(webserver)
+	app := fiber.New(fiber.Config{
+		AppName:               "docker-graph",
+		ErrorHandler:          handleError,
+		DisableStartupMessage: Quiet,
+		EnablePrintRoutes:     Debug,
+	})
+	app.Get("/favicon.ico", favicon.New())
+	if Verbose {
+		app.Use("/", logger.New())
+	}
+	if Debug {
+		app.Use(recover.New(recover.Config{EnableStackTrace: true}))
+	}
+	api.MountAPI(app.Group("/api"), events, endpoint)
+	if assetHandler, err := MakeAssetHandler(); err == nil {
+		app.Use("/", assetHandler)
+	} else {
+		log.Fatal(err)
+	}
 
-	if err := sup.Serve(ctx); err != nil {
+	webserver := NewServer(*httpAddr, app)
+	Supervisor.Add(webserver)
+
+	if err := Supervisor.Serve(ctx); err != nil {
 		log.Fatalf("Exiting: %s", err)
+	}
+}
+
+func NewServer(address string, app *fiber.App) (s *Server) {
+	return &Server{
+		app:     app,
+		address: address,
+	}
+}
+
+func (s *Server) Serve(ctx context.Context) error {
+	subCtx, stop := context.WithCancel(ctx)
+	defer stop()
+
+	go func() {
+		<-subCtx.Done()
+		s.app.Shutdown()
+	}()
+
+	return s.app.Listen(s.address)
+}
+
+func handleError(c *fiber.Ctx, err error) error {
+	log.Printf("error: %#v", err)
+	fiberError, isFiberError := err.(*fiber.Error)
+	switch {
+	case isFiberError:
+		return c.Status(fiberError.Code).Send([]byte(fiberError.Message))
+	case client.IsErrNotFound(err):
+		return c.SendStatus(http.StatusNotFound)
+	case client.IsErrConnectionFailed(err):
+		return c.SendStatus(http.StatusServiceUnavailable)
+	default:
+		return c.Status(http.StatusInternalServerError).Send([]byte(err.Error()))
 	}
 }

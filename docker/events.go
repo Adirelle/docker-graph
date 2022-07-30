@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/adirelle/docker-graph/web"
+	"github.com/adirelle/docker-graph/api"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/thejerf/suture/v4"
@@ -21,7 +21,7 @@ type (
 
 	Stream struct {
 		conn        Connection
-		events      chan<- web.Event
+		events      chan<- api.Event
 		lastEventID EventID
 	}
 
@@ -39,13 +39,13 @@ type (
 
 var (
 	_ suture.Service  = (*StreamFactory)(nil)
-	_ web.EventSource = (*StreamFactory)(nil)
+	_ api.EventSource = (*StreamFactory)(nil)
 
 	_ suture.Service = (*Stream)(nil)
 
-	_ web.Event = (*Event)(nil)
+	_ api.Event = (*Event)(nil)
 
-	_ web.EventID  = (*EventID)(nil)
+	_ api.EventID  = (*EventID)(nil)
 	_ fmt.Stringer = (*EventID)(nil)
 
 	eventFilter = map[string]map[string]bool{
@@ -71,8 +71,8 @@ func NewStreamFactory(connFactory ConnectionFactory) *StreamFactory {
 	}
 }
 
-func (f *StreamFactory) Listen(from web.EventID) (events <-chan web.Event, stop func(), err error) {
-	eventChan := make(chan web.Event, 10)
+func (f *StreamFactory) Listen(from api.EventID) (events <-chan api.Event, stop func(), err error) {
+	eventChan := make(chan api.Event, 10)
 	events = eventChan
 	stream := &Stream{events: eventChan}
 	if from != nil {
@@ -140,7 +140,7 @@ func (e *Event) Type() string {
 	return fmt.Sprintf("%s/%s", e.TargetType, e.Action)
 }
 
-func (e *Event) ID() web.EventID {
+func (e *Event) ID() api.EventID {
 	return e.EventID
 }
 

@@ -4,27 +4,27 @@ import (
 	"context"
 	"strings"
 
-	"github.com/adirelle/docker-graph/web"
+	"github.com/adirelle/docker-graph/api"
 	"github.com/docker/docker/api/types"
 )
 
 type (
-	Endpoint struct {
+	RESTEndpoint struct {
 		connFactory ConnectionFactory
 	}
 )
 
 var (
-	_ web.ContainerProvider = (*Endpoint)(nil)
-	_ web.NetworkProvider   = (*Endpoint)(nil)
-	_ web.VolumeProvider    = (*Endpoint)(nil)
+	_ api.ContainerProvider = (*RESTEndpoint)(nil)
+	_ api.NetworkProvider   = (*RESTEndpoint)(nil)
+	_ api.VolumeProvider    = (*RESTEndpoint)(nil)
 )
 
-func NewEndpoint(connFactory ConnectionFactory) *Endpoint {
-	return &Endpoint{connFactory}
+func NewRESTEndpoint(connFactory ConnectionFactory) *RESTEndpoint {
+	return &RESTEndpoint{connFactory}
 }
 
-func (e *Endpoint) ListContainerIDs(ctx context.Context) (ids []web.ContainerID, err error) {
+func (e *RESTEndpoint) ListContainerIDs(ctx context.Context) (ids []api.ContainerID, err error) {
 	var conn Connection
 	if conn, err = e.connFactory.CreateConn(); err != nil {
 		return
@@ -33,13 +33,13 @@ func (e *Endpoint) ListContainerIDs(ctx context.Context) (ids []web.ContainerID,
 	var containers []types.Container
 	if containers, err = conn.ContainerList(ctx, types.ContainerListOptions{}); err == nil {
 		for _, container := range containers {
-			ids = append(ids, web.ContainerID(container.ID))
+			ids = append(ids, api.ContainerID(container.ID))
 		}
 	}
 	return
 }
 
-func (e *Endpoint) GetContainer(id web.ContainerID, ctx context.Context) (ctn *web.Container, err error) {
+func (e *RESTEndpoint) GetContainer(id api.ContainerID, ctx context.Context) (ctn *api.Container, err error) {
 	var conn Connection
 	if conn, err = e.connFactory.CreateConn(); err != nil {
 		return
@@ -47,7 +47,7 @@ func (e *Endpoint) GetContainer(id web.ContainerID, ctx context.Context) (ctn *w
 	defer conn.Close()
 	var data types.ContainerJSON
 	if data, err = conn.ContainerInspect(ctx, string(id)); err == nil {
-		ctn = &web.Container{
+		ctn = &api.Container{
 			ID:      id,
 			Name:    data.Name,
 			Status:  data.State.Status,
@@ -61,26 +61,26 @@ func (e *Endpoint) GetContainer(id web.ContainerID, ctx context.Context) (ctn *w
 		}
 
 		for _, net := range data.NetworkSettings.Networks {
-			ctn.Networks = append(ctn.Networks, web.NetworkID(net.NetworkID))
+			ctn.Networks = append(ctn.Networks, api.NetworkID(net.NetworkID))
 		}
 		for _, mnt := range data.Mounts {
-			webMount := web.Mount{
+			apiMount := api.Mount{
 				Type:        string(mnt.Type),
 				Name:        mnt.Name,
 				Source:      mnt.Source,
 				Destination: mnt.Destination,
 				ReadWrite:   mnt.RW,
 			}
-			if webMount.Type == "bind" && baseDir != "" && strings.HasPrefix(webMount.Source, baseDir) {
-				webMount.Source = "./" + webMount.Source[len(baseDir):]
+			if apiMount.Type == "bind" && baseDir != "" && strings.HasPrefix(apiMount.Source, baseDir) {
+				apiMount.Source = "./" + apiMount.Source[len(baseDir):]
 			}
-			ctn.Mounts = append(ctn.Mounts, webMount)
+			ctn.Mounts = append(ctn.Mounts, apiMount)
 		}
 	}
 	return
 }
 
-func (e *Endpoint) GetNetwork(id web.NetworkID, ctx context.Context) (net *web.Network, err error) {
+func (e *RESTEndpoint) GetNetwork(id api.NetworkID, ctx context.Context) (net *api.Network, err error) {
 	var conn Connection
 	if conn, err = e.connFactory.CreateConn(); err != nil {
 		return
@@ -88,12 +88,12 @@ func (e *Endpoint) GetNetwork(id web.NetworkID, ctx context.Context) (net *web.N
 	defer conn.Close()
 	var data types.NetworkResource
 	if data, err = conn.NetworkInspect(ctx, string(id), types.NetworkInspectOptions{}); err == nil {
-		net = &web.Network{ID: id, Name: data.Name}
+		net = &api.Network{ID: id, Name: data.Name}
 	}
 	return
 }
 
-func (e *Endpoint) GetVolume(id web.VolumeID, ctx context.Context) (vol *web.Volume, err error) {
+func (e *RESTEndpoint) GetVolume(id api.VolumeID, ctx context.Context) (vol *api.Volume, err error) {
 	var conn Connection
 	if conn, err = e.connFactory.CreateConn(); err != nil {
 		return
@@ -101,7 +101,7 @@ func (e *Endpoint) GetVolume(id web.VolumeID, ctx context.Context) (vol *web.Vol
 	defer conn.Close()
 	var data types.Volume
 	if data, err = conn.VolumeInspect(ctx, string(id)); err == nil {
-		vol = &web.Volume{ID: id, Name: data.Name}
+		vol = &api.Volume{ID: id, Name: data.Name}
 	}
 	return
 }
