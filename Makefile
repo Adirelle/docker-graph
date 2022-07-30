@@ -18,7 +18,10 @@ generate: prereq
 	go generate $(GENERATE_FLAGS) ./...
 
 dev:
-	modd
+	modd -f pkg/cli/docker-graph/modd.conf
+
+docker-dev:
+	modd -f pkg/cli/docker-dev/modd.conf
 
 prereq:
 	go install github.com/cortesi/modd/cmd/modd@latest
