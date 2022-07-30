@@ -8,8 +8,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/adirelle/docker-graph/api"
-	"github.com/adirelle/docker-graph/docker"
+	"github.com/adirelle/docker-graph/pkg/lib/api"
+	"github.com/adirelle/docker-graph/pkg/lib/docker"
 	"github.com/docker/docker/client"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/favicon"

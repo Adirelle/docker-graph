@@ -12,7 +12,7 @@ cleaner: clean
 	rm -fr app/node_modules
 
 build: generate prereq
-	go build -o docker-graph $(BUILD_FLAGS) .
+	go build $(BUILD_FLAGS) ./pkg/cli/docker-graph
 
 generate: prereq
 	go generate $(GENERATE_FLAGS) ./...
@@ -22,5 +22,5 @@ dev:
 
 prereq:
 	go install github.com/cortesi/modd/cmd/modd@latest
-	go get -v
+	go get -v ./...
 	cd app && bun install

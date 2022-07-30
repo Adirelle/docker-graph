@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/adirelle/docker-graph/api"
+	"github.com/adirelle/docker-graph/pkg/lib/api"
 	"github.com/docker/docker/api/types"
 )
 
