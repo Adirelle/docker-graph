@@ -28,12 +28,19 @@ var (
 	proxyAddr string
 
 	esbuildOptions = api.BuildOptions{
-		Bundle:   true,
-		Platform: api.PlatformBrowser,
-		Format:   api.FormatIIFE,
-		Color:    api.ColorAlways,
-		LogLimit: 0,
-		Outfile:  "public/script.js",
+		Outfile:   "public/script.js",
+		Bundle:    true,
+		Platform:  api.PlatformBrowser,
+		Format:    api.FormatIIFE,
+		Color:     api.ColorAlways,
+		LogLevel:  api.LogLevelVerbose,
+		LogLimit:  0,
+		Sourcemap: api.SourceMapInline,
+		// Watch: &api.WatchMode{
+		// 	OnRebuild: func(result api.BuildResult) {
+		// 		log.Printf("rebuilt: %#v", result)
+		// 	},
+		// },
 	}
 
 	_ suture.Service = (*ESBuilderServer)(nil)

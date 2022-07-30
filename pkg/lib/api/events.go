@@ -2,66 +2,91 @@ package api
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/adirelle/docker-graph/pkg/lib/docker"
+	"github.com/gofiber/fiber/v2"
 )
 
 type (
-	Streamer struct {
-		events <-chan Event
-		stop   func()
+	API struct {
+		source *docker.EventSource
 	}
 
-	EventID interface {
-		fmt.Stringer
+	receiver struct {
+		events chan<- docker.Event
 	}
-
-	Event interface {
-		Type() string
-		ID() EventID
-		Payload() interface{}
-	}
-
-	EventSource interface {
-		Listen(from EventID) (events <-chan Event, stop func(), err error)
-	}
-
-	eventId string
 )
 
-var _ EventID = (*eventId)(nil)
+func MountAPI(mnt fiber.Router, source *docker.EventSource) {
+	api := &API{source}
+	mnt.Get("/events", api.streamEvents)
+}
 
-func (s *Streamer) start(output *bufio.Writer) {
-	encoder := json.NewEncoder(output)
-
-	defer s.stop()
-	for event := range s.events {
-		if err := s.writeEvent(output, encoder, event); err == io.EOF {
-			return
-		} else if err != nil {
-			fmt.Printf("Error while writing event: %s", err)
+func (a *API) streamEvents(ctx *fiber.Ctx) error {
+	var lastEventTime time.Time
+	if lastEventIdHeader := ctx.Get("Last-Event-ID"); lastEventIdHeader != "" {
+		if timestamp, err := strconv.ParseInt(lastEventIdHeader, 10, 64); err == nil {
+			lastEventTime = time.Unix(0, timestamp)
+		} else {
+			return fiber.NewError(http.StatusBadRequest, fmt.Sprintf("invalid Last-Event-ID: %s", err))
 		}
 	}
+
+	ctx.Set("Content-Type", "text/event-stream")
+	ctx.Set("Cache-Control", "no-cache")
+	ctx.Set("Connection", "keep-alive")
+	ctx.Set("Transfer-Encoding", "chunked")
+
+	ctx.Context().SetBodyStreamWriter(func(output *bufio.Writer) {
+		var err error
+		defer func() {
+			if err != nil && err != io.EOF {
+				log.Println(err)
+			}
+		}()
+
+		events := make(chan docker.Event, 5)
+		defer close(events)
+
+		rcv := receiver{events}
+		done := a.source.Subscribe(rcv)
+		defer done()
+
+		enc := json.NewEncoder(output)
+		for event := range events {
+			if event.Time.Before(lastEventTime) {
+				continue
+			}
+			lastEventTime = event.Time
+			if _, err = fmt.Fprintf(output, "id:%d\ndata:", event.Time.UnixNano()); err != nil {
+				return
+			}
+			if err = enc.Encode(event); err != nil {
+				return
+			}
+			if _, err = output.WriteString("\n\n"); err != nil {
+				return
+			}
+			if err = output.Flush(); err != nil {
+				return
+			}
+		}
+	})
+
+	return nil
 }
 
-func (s *Streamer) writeEvent(output *bufio.Writer, encoder *json.Encoder, event Event) (err error) {
-	if _, err = fmt.Fprintf(output, "id:%s\nevent:%s\ndata:", event.ID(), event.Type()); err != nil {
-		return
+func (r receiver) Receive(event docker.Event, ctx context.Context) {
+	select {
+	case r.events <- event:
+	case <-ctx.Done():
 	}
-	if err = encoder.Encode(event.Payload()); err == io.EOF {
-		return
-	}
-	if _, err = output.WriteString("\n"); err != nil {
-		return
-	}
-	return output.Flush()
-}
-
-func parseEventID(id string) eventId {
-	return eventId(id)
-}
-
-func (s eventId) String() string {
-	return string(s)
 }

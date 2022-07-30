@@ -3,6 +3,7 @@ module github.com/adirelle/docker-graph
 go 1.18
 
 require (
+	github.com/docker/go-connections v0.4.0
 	github.com/evanw/esbuild v0.14.51
 	github.com/gofiber/fiber/v2 v2.35.0
 	github.com/thejerf/suture/v4 v4.0.2
@@ -11,9 +12,12 @@ require (
 require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
+	github.com/gofiber/utils v0.0.10 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/gorilla/schema v1.1.0 // indirect
+	github.com/mattn/go-colorable v0.1.7 // indirect
+	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 	"os/signal"
@@ -11,17 +12,35 @@ import (
 	"github.com/thejerf/suture/v4"
 )
 
+type subscriber struct {
+	*json.Encoder
+}
+
 func main() {
 	spv := suture.NewSimple("docker-graph")
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Kill, os.Interrupt)
 
-	connFactory := docker.NewConnectionPool(docker.MakeBasicConnectionFactory(client.FromEnv))
+	connFactory := docker.MakeBasicConnectionFactory(client.FromEnv)
 
-	events := docker.NewStreamFactory(connFactory)
-	spv.Add(events)
+	svc := docker.NewEventSource(connFactory)
+	spv.Add(svc)
+
+	go func() {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+
+		done := svc.Subscribe(subscriber{enc})
+
+		defer done()
+		<-ctx.Done()
+	}()
 
 	if err := spv.Serve(ctx); err != nil {
 		log.Fatalf("Exiting: %s", err)
 	}
+}
+
+func (s subscriber) Receive(e docker.Event, ctx context.Context) {
+	s.Encode(e)
 }

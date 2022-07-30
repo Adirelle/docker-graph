@@ -46,11 +46,10 @@ func main() {
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Kill, os.Interrupt)
 
-	connFactory := docker.NewConnectionPool(docker.MakeBasicConnectionFactory(client.FromEnv))
-	endpoint := docker.NewRESTEndpoint(connFactory)
+	connFactory := docker.MakeBasicConnectionFactory(client.FromEnv)
 
-	events := docker.NewStreamFactory(connFactory)
-	Supervisor.Add(events)
+	eventSource := docker.NewEventSource(connFactory)
+	Supervisor.Add(eventSource)
 
 	app := fiber.New(fiber.Config{
 		AppName:               "docker-graph",
@@ -65,7 +64,7 @@ func main() {
 	if Debug {
 		app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	}
-	api.MountAPI(app.Group("/api"), events, endpoint)
+	api.MountAPI(app.Group("/api"), eventSource)
 	if assetHandler, err := MakeAssetHandler(); err == nil {
 		app.Use("/", assetHandler)
 	} else {
