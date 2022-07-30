@@ -31,7 +31,7 @@ var (
 		Bundle:   true,
 		Platform: api.PlatformBrowser,
 		Format:   api.FormatIIFE,
-		Color:    api.ColorIfTerminal,
+		Color:    api.ColorAlways,
 		LogLimit: 0,
 		Outfile:  "public/script.js",
 	}

@@ -10,7 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 )
 
-//go:generate cd app; bun run build
+//go:generate sh -c "cd app && bun run build"
 //go:embed app/public
 var assets embed.FS
 
