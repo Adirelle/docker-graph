@@ -2,12 +2,14 @@ package containers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 	"time"
 
 	"github.com/adirelle/docker-graph/pkg/lib/docker/connections"
 	myEvents "github.com/adirelle/docker-graph/pkg/lib/docker/events"
+	"github.com/adirelle/docker-graph/pkg/lib/utils"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
 	"github.com/thejerf/suture/v4"
@@ -19,46 +21,36 @@ type (
 		ConnFactory connections.Factory
 
 		conn       connections.Connection
-		commands   chan repoCommand
-		containers map[ID]*Container
+		messages   chan events.Message
+		containers map[ID]*tracker
 	}
 
-	repoCommand interface {
-		Execute(*Repository, context.Context) error
-	}
-
-	processMessageCmd struct {
-		msg events.Message
-	}
-
-	inspectCmd struct {
-		id   ID
-		when time.Time
-	}
-
-	removeCmd struct {
-		id   ID
-		when time.Time
+	tracker struct {
+		Container
+		utils.Debouncer
 	}
 )
 
 var (
 	_ suture.Service = (*Repository)(nil)
+	_ fmt.GoStringer = (*Repository)(nil)
 
-	_ repoCommand = (*processMessageCmd)(nil)
-	_ repoCommand = (*inspectCmd)(nil)
-	_ repoCommand = (*removeCmd)(nil)
+	InspectTimeout = 200 * time.Millisecond
 )
 
 func NewRepository(emitter *myEvents.Emitter, connFactory connections.Factory) (r *Repository) {
 	r = &Repository{
 		Emitter:     emitter,
 		ConnFactory: connFactory,
-		commands:    make(chan repoCommand, 50),
-		containers:  make(map[ID]*Container, 10),
+		messages:    make(chan events.Message, 50),
+		containers:  make(map[ID]*tracker, 10),
 	}
 	emitter.OnNewReceiver = r.primeNewReceiver
 	return r
+}
+
+func (r *Repository) GoString() string {
+	return fmt.Sprintf("containers.Repository(%d, %d/%d)", len(r.containers), len(r.messages), cap(r.messages))
 }
 
 func (r *Repository) Serve(ctx context.Context) (err error) {
@@ -73,8 +65,8 @@ func (r *Repository) Serve(ctx context.Context) (err error) {
 
 	for err == nil {
 		select {
-		case cmd := <-r.commands:
-			err = cmd.Execute(r, ctx)
+		case msg := <-r.messages:
+			err = r.handleMessage(msg, ctx)
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -83,83 +75,99 @@ func (r *Repository) Serve(ctx context.Context) (err error) {
 }
 
 func (r *Repository) Process(msg events.Message) {
-	r.commands <- processMessageCmd{msg}
+	r.messages <- msg
 }
 
 func (r *Repository) primeNewReceiver(receiver myEvents.Receiver) {
 	ctx := context.Background()
-	for _, c := range r.containers {
-		event := myEvents.MakeEvent(myEvents.ContainerTarget, string(c.ID), myEvents.TargetUpdated, c.LastUpdateTime(), c)
-		receiver.Receive(event, ctx)
+	for _, t := range r.containers {
+		if !t.UpdatedAt.IsZero() {
+			event := myEvents.MakeContainerUpdatedEvent(t.ID, t.UpdatedAt, t.Container)
+			receiver.Receive(event, ctx)
+		}
 	}
 }
 
-func (c processMessageCmd) Execute(r *Repository, ctx context.Context) error {
-	if cmd := c.handleMessage(c.msg); cmd != nil {
-		log.Printf("message %s:%s(%s) => %v", c.msg.Type, c.msg.Action, c.msg.ID, cmd)
-		r.commands <- cmd
+func (r *Repository) handleMessage(msg events.Message, ctx context.Context) error {
+	if r.doHandleMessage(msg, ctx) {
+		log.Printf("handled message %s:%s(%s)", msg.Type, msg.Action, msg.ID)
 	} else {
-		log.Printf("ignored %s:%s message", c.msg.Type, c.msg.Action)
+		log.Printf("ignored %s:%s message", msg.Type, msg.Action)
 	}
 	return nil
 }
 
-func (c processMessageCmd) handleMessage(msg events.Message) repoCommand {
+func (r *Repository) doHandleMessage(msg events.Message, ctx context.Context) bool {
 	when := time.Unix(0, msg.TimeNano)
 	switch msg.Type {
 	case "container":
 		if msg.Action == "destroy" {
-			return removeCmd{ID(msg.ID), when}
+			r.removeContainer(ID(msg.ID), when, ctx)
+			return true
 		}
 		if msg.Action == "attach" || msg.Action == "detach" || strings.HasPrefix(msg.Action, "exec_") {
-			return nil
+			return false
 		}
-		return inspectCmd{ID(msg.ID), when}
+		r.updateContainer(ID(msg.ID), when, ctx)
+		return true
 	case "network":
 		if msg.Action == "connect" || msg.Action == "disconnect" {
-			return inspectCmd{ID(c.msg.Actor.Attributes["containers"]), when}
+			r.updateContainer(ID(msg.Actor.Attributes["containers"]), when, ctx)
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
-func (c inspectCmd) Execute(r *Repository, ctx context.Context) error {
-	ctn, found := r.containers[c.id]
-	if found && ctn.IsRemoved() {
-		return nil
+func (r *Repository) updateContainer(id ID, when time.Time, ctx context.Context) {
+	if id == "" {
+		return
 	}
-	data, err := r.conn.ContainerInspect(ctx, string(c.id))
+	t, found := r.containers[id]
+	if !found {
+		t = &tracker{
+			Container: Container{ID: id},
+			Debouncer: utils.Debouncer{
+				Func: func() {
+					inspectCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					r.inspectContainer(t, when, inspectCtx)
+				},
+				Delay: InspectTimeout,
+			},
+		}
+		r.containers[id] = t
+		log.Printf("added container: %s", id)
+	}
+	t.Trigger()
+}
+
+func (r *Repository) inspectContainer(t *tracker, when time.Time, ctx context.Context) {
+	log.Printf("inspecting container: %s", t.ID)
+	data, err := r.conn.ContainerInspect(ctx, string(t.ID))
 	if err != nil {
-		if client.IsErrNotFound(err) {
-			r.commands <- removeCmd(c)
-			return nil
+		if !client.IsErrNotFound(err) {
+			log.Println(err)
 		}
-		return err
+		return
 	}
-	if data.State.Status == "removing" {
-		r.commands <- removeCmd(c)
-		return nil
+	log.Printf("updating container: %s, %#v", t.ID, data)
+	changed := t.Update(data, when)
+	if t.IsRemoved() {
+		r.removeContainer(t.ID, when, ctx)
+	} else if changed {
+		r.Emitter.Emit(myEvents.MakeContainerUpdatedEvent(t.ID, when, t.Container))
 	}
-	if !found {
-		ctn = NewContainer(data)
-		r.containers[c.id] = ctn
-		log.Printf("added container: %s", c.id)
-	} else {
-		ctn.Update(data)
-		log.Printf("updated container: %s", c.id)
-	}
-	r.Emitter.Emit(myEvents.MakeEvent(myEvents.ContainerTarget, string(c.id), myEvents.TargetUpdated, c.when, ctn))
-	return nil
 }
 
-func (c removeCmd) Execute(r *Repository, ctx context.Context) error {
-	ctn, found := r.containers[c.id]
+func (r *Repository) removeContainer(id ID, when time.Time, ctx context.Context) {
+	t, found := r.containers[id]
 	if !found {
-		return nil
+		return
 	}
-	ctn.RemovedAt = c.when
-	delete(r.containers, c.id)
-	log.Printf("removed container: %s", c.id)
-	r.Emitter.Emit(myEvents.MakeEvent(myEvents.ContainerTarget, string(c.id), myEvents.TargetRemoved, c.when, nil))
-	return nil
+	t.Stop()
+	delete(r.containers, id)
+	t.Container.RemovedAt = when
+	log.Printf("removed container: %s", id)
+	r.Emitter.Emit(myEvents.MakeContainerRemovedEvent(id, when))
 }

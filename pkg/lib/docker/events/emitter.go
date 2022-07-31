@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/thejerf/suture/v4"
@@ -38,6 +39,7 @@ type (
 
 var (
 	_ suture.Service = (*Emitter)(nil)
+	_ fmt.GoStringer = (*Emitter)(nil)
 
 	_ emitterCommand = (*emitCommand)(nil)
 	_ emitterCommand = (*subscribeCommand)(nil)
@@ -49,6 +51,10 @@ func NewEmitter() *Emitter {
 		receivers: make(map[Receiver]bool),
 		commands:  make(chan emitterCommand, 50),
 	}
+}
+
+func (e *Emitter) GoString() string {
+	return fmt.Sprintf("events.Emitter(%d, %d/%d)", len(e.receivers), len(e.commands), cap(e.commands))
 }
 
 func (e *Emitter) Serve(ctx context.Context) error {

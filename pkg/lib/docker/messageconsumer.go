@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/adirelle/docker-graph/pkg/lib/docker/connections"
@@ -19,13 +20,20 @@ type (
 	}
 )
 
-var _ suture.Service = (*MessageConsumer)(nil)
+var (
+	_ suture.Service = (*MessageConsumer)(nil)
+	_ fmt.GoStringer = (*MessageConsumer)(nil)
+)
 
 func NewMessageConsumer(connFactory connections.Factory, repository *containers.Repository) *MessageConsumer {
 	return &MessageConsumer{
 		connFactory: connFactory,
 		repository:  repository,
 	}
+}
+
+func (m *MessageConsumer) GoString() string {
+	return "MessageConsumer"
 }
 
 func (m *MessageConsumer) Serve(ctx context.Context) error {
@@ -68,7 +76,7 @@ func (m *MessageConsumer) prime(ctx context.Context, conn connections.Connection
 		if i == 0 || created.After(m.lastMessageTime) {
 			m.lastMessageTime = created
 		}
-		m.repository.Process(events.Message{Type: "container", Action: "created", ID: ctn.ID, TimeNano: created.UnixNano()})
+		m.repository.Process(events.Message{Type: "container", Action: "create", ID: ctn.ID, TimeNano: created.UnixNano()})
 	}
 	return nil
 }

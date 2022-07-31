@@ -1,6 +1,8 @@
 package containers
 
 import (
+	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -49,32 +51,68 @@ type (
 	}
 )
 
-func NewContainer(container types.ContainerJSON) *Container {
-	createdAt := time.Now()
-	c := &Container{
-		ID:        ID(container.ID),
-		CreatedAt: createdAt,
-		UpdatedAt: createdAt,
-		Name:      container.Name[1:],
-		Image:     container.Config.Image,
-		Project:   container.Config.Labels["com.docker.compose.project"],
-		Service:   container.Config.Labels["com.docker.compose.service"],
-	}
-	c.readMounts(container.Config.Labels["com.docker.compose.project.working_dir"], container.Mounts)
-	c.readPorts(container.NetworkSettings.Ports)
-	c.Update(container)
-	return c
-}
+var (
+	_ fmt.Stringer = (*ID)(nil)
+	_ fmt.Stringer = (*Status)(nil)
+)
 
 func (c *Container) LastUpdateTime() time.Time {
 	if !c.RemovedAt.IsZero() {
 		return c.RemovedAt
 	}
-	return c.UpdatedAt
+	if !c.UpdatedAt.IsZero() {
+		return c.UpdatedAt
+	}
+	return c.CreatedAt
 }
 
 func (c *Container) IsRemoved() bool {
-	return !c.RemovedAt.IsZero()
+	return !c.RemovedAt.IsZero() || c.Status.IsRemoved()
+}
+
+func (c *Container) Update(data types.ContainerJSON, when time.Time) (changed bool) {
+	if c.CreatedAt.IsZero() {
+		c.Init(data)
+		changed = true
+	}
+	if status := Status(data.State.Status); c.Status != status {
+		c.Status = status
+		changed = true
+		log.Printf("status=%s", status)
+		if status.IsRemoved() {
+			c.RemovedAt = when
+		}
+	}
+	healthy := ""
+	if c.Status.IsRunning() && data.State.Health != nil {
+		healthy = data.State.Health.Status
+	}
+	if c.Healthy != healthy {
+		c.Healthy = healthy
+		changed = true
+	}
+	if c.updateNetworks(data.NetworkSettings.Networks) {
+		changed = true
+	}
+	if changed {
+		c.UpdatedAt = when
+	}
+	return changed
+}
+
+func (c *Container) Init(container types.ContainerJSON) {
+	if when, err := time.Parse(time.RFC3339Nano, container.Created); err == nil {
+		c.CreatedAt = when
+	} else {
+		log.Printf("invalid created timestamp: %s", container.Created)
+		c.CreatedAt = time.Now()
+	}
+	c.Name = container.Name[1:]
+	c.Image = container.Config.Image
+	c.Project = container.Config.Labels["com.docker.compose.project"]
+	c.Service = container.Config.Labels["com.docker.compose.service"]
+	c.readMounts(container.Config.Labels["com.docker.compose.project.working_dir"], container.Mounts)
+	c.readPorts(container.NetworkSettings.Ports)
 }
 
 func (c *Container) readMounts(baseDir string, mounts []types.MountPoint) {
@@ -104,33 +142,49 @@ func (c *Container) readPorts(ports nat.PortMap) {
 	}
 }
 
-func (c *Container) Update(container types.ContainerJSON) {
-	c.Status = Status(container.State.Status)
-	if container.State.Health != nil {
-		c.Healthy = container.State.Health.Status
-	} else {
-		c.Healthy = ""
-	}
-	c.updateNetworks(container.NetworkSettings.Networks)
-	c.UpdatedAt = time.Now()
-}
-
-func (c *Container) updateNetworks(networks map[string]*network.EndpointSettings) {
-	if c.Networks == nil {
+func (c *Container) updateNetworks(networks map[string]*network.EndpointSettings) (changed bool) {
+	if c.Networks == nil && len(networks) > 0 {
 		c.Networks = make(map[string]*Network, len(networks))
+		changed = true
+	} else if len(networks) == 0 && c.Networks != nil {
+		c.Networks = nil
+		return true
 	}
 	for key, netData := range networks {
 		dest, found := c.Networks[key]
 		if !found {
 			dest = &Network{}
 			c.Networks[key] = dest
+			dest.Name = key
+			changed = true
 		}
-		dest.ID = netData.NetworkID
-		dest.Name = key
+		if dest.ID != netData.NetworkID {
+			dest.ID = netData.NetworkID
+			changed = true
+		}
 	}
 	for key := range c.Networks {
 		if _, found := networks[key]; !found {
 			delete(c.Networks, key)
+			changed = true
 		}
 	}
+
+	return
+}
+
+func (i ID) String() string {
+	return string(i)
+}
+
+func (s Status) String() string {
+	return string(s)
+}
+
+func (s Status) IsRunning() bool {
+	return s == "running"
+}
+
+func (s Status) IsRemoved() bool {
+	return s == "removing"
 }
