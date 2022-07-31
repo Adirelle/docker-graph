@@ -1,7 +1,7 @@
 BUILD_FLAGS = -v
 GENERATE_FLAGS = -x
 
-.PHONY: all clean build generate dev prereq
+.PHONY: all clean build generate dev prereq modd get node_modules
 
 all: build
 
@@ -11,19 +11,20 @@ clean:
 cleaner: clean
 	rm -fr app/node_modules
 
-build: generate prereq
+build: generate get
 	go build $(BUILD_FLAGS) ./pkg/cli/docker-graph
 
-generate: prereq
+generate: get node_modules
 	go generate $(GENERATE_FLAGS) ./...
 
-dev:
+dev: modd get node_modules
 	modd -f pkg/cli/docker-graph/modd.conf
 
-docker-dev:
-	modd -f pkg/cli/docker-dev/modd.conf
-
-prereq:
-	go install github.com/cortesi/modd/cmd/modd@latest
+get:
 	go get -v ./...
+
+node_modules:
 	cd app && bun install
+
+modd:
+	go install github.com/cortesi/modd/cmd/modd@latest
