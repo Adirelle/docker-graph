@@ -1,8 +1,9 @@
-package docker
+package containers
 
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/network"
@@ -10,20 +11,23 @@ import (
 )
 
 type (
-	ContainerID     string
-	ContainerStatus string
+	ID     string
+	Status string
 
 	Container struct {
-		ID       ContainerID
-		Name     string
-		Image    string
-		Status   ContainerStatus
-		Healthy  string `json:",omitempty"`
-		Service  string `json:",omitempty"`
-		Project  string `json:",omitempty"`
-		Networks map[string]*Network
-		Mounts   []Mount
-		Ports    map[string]Port
+		ID        ID
+		CreatedAt time.Time
+		UpdatedAt time.Time
+		RemovedAt time.Time
+		Name      string
+		Image     string
+		Status    Status
+		Healthy   string `json:",omitempty"`
+		Service   string `json:",omitempty"`
+		Project   string `json:",omitempty"`
+		Networks  map[string]*Network
+		Mounts    []Mount
+		Ports     map[string]Port
 	}
 
 	Network struct {
@@ -45,18 +49,32 @@ type (
 	}
 )
 
-func NewContainer(container *types.ContainerJSON) *Container {
+func NewContainer(container types.ContainerJSON) *Container {
+	createdAt := time.Now()
 	c := &Container{
-		ID:      ContainerID(container.ID),
-		Name:    container.Name[1:],
-		Image:   container.Config.Image,
-		Project: container.Config.Labels["com.docker.compose.project"],
-		Service: container.Config.Labels["com.docker.compose.service"],
+		ID:        ID(container.ID),
+		CreatedAt: createdAt,
+		UpdatedAt: createdAt,
+		Name:      container.Name[1:],
+		Image:     container.Config.Image,
+		Project:   container.Config.Labels["com.docker.compose.project"],
+		Service:   container.Config.Labels["com.docker.compose.service"],
 	}
 	c.readMounts(container.Config.Labels["com.docker.compose.project.working_dir"], container.Mounts)
 	c.readPorts(container.NetworkSettings.Ports)
 	c.Update(container)
 	return c
+}
+
+func (c *Container) LastUpdateTime() time.Time {
+	if !c.RemovedAt.IsZero() {
+		return c.RemovedAt
+	}
+	return c.UpdatedAt
+}
+
+func (c *Container) IsRemoved() bool {
+	return !c.RemovedAt.IsZero()
 }
 
 func (c *Container) readMounts(baseDir string, mounts []types.MountPoint) {
@@ -86,14 +104,15 @@ func (c *Container) readPorts(ports nat.PortMap) {
 	}
 }
 
-func (c *Container) Update(container *types.ContainerJSON) {
-	c.Status = ContainerStatus(container.State.Status)
+func (c *Container) Update(container types.ContainerJSON) {
+	c.Status = Status(container.State.Status)
 	if container.State.Health != nil {
 		c.Healthy = container.State.Health.Status
 	} else {
 		c.Healthy = ""
 	}
 	c.updateNetworks(container.NetworkSettings.Networks)
+	c.UpdatedAt = time.Now()
 }
 
 func (c *Container) updateNetworks(networks map[string]*network.EndpointSettings) {
@@ -107,7 +126,7 @@ func (c *Container) updateNetworks(networks map[string]*network.EndpointSettings
 			c.Networks[key] = dest
 		}
 		dest.ID = netData.NetworkID
-		dest.Name = append(netData.Aliases, key)[0]
+		dest.Name = key
 	}
 	for key := range c.Networks {
 		if _, found := networks[key]; !found {

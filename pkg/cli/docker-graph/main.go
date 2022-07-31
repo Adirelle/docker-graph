@@ -10,6 +10,9 @@ import (
 
 	"github.com/adirelle/docker-graph/pkg/lib/api"
 	"github.com/adirelle/docker-graph/pkg/lib/docker"
+	"github.com/adirelle/docker-graph/pkg/lib/docker/connections"
+	"github.com/adirelle/docker-graph/pkg/lib/docker/containers"
+	"github.com/adirelle/docker-graph/pkg/lib/docker/events"
 	"github.com/docker/docker/client"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
@@ -46,16 +49,21 @@ func main() {
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Kill, os.Interrupt)
 
-	connFactory := docker.MakeBasicConnectionFactory(client.FromEnv)
+	connFactory := connections.MakeBasicFactory(client.FromEnv)
 
-	eventSource := docker.NewEventSource(connFactory)
-	Supervisor.Add(eventSource)
+	eventEmitter := events.NewEmitter()
+	Supervisor.Add(eventEmitter)
+
+	containerRepo := containers.NewRepository(eventEmitter, connFactory)
+	Supervisor.Add(containerRepo)
+
+	messageConsumer := docker.NewMessageConsumer(connFactory, containerRepo)
+	Supervisor.Add(messageConsumer)
 
 	app := fiber.New(fiber.Config{
 		AppName:               "docker-graph",
 		ErrorHandler:          handleError,
 		DisableStartupMessage: Quiet,
-		EnablePrintRoutes:     Debug,
 	})
 	app.Get("/favicon.ico", favicon.New())
 	if Verbose {
@@ -64,7 +72,7 @@ func main() {
 	if Debug {
 		app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	}
-	api.MountAPI(app.Group("/api"), eventSource)
+	api.MountAPI(app.Group("/api"), eventEmitter)
 	if assetHandler, err := MakeAssetHandler(); err == nil {
 		app.Use("/", assetHandler)
 	} else {

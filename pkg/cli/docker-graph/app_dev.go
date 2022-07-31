@@ -34,13 +34,8 @@ var (
 		Format:    api.FormatIIFE,
 		Color:     api.ColorAlways,
 		LogLevel:  api.LogLevelVerbose,
-		LogLimit:  0,
+		LogLimit:  10,
 		Sourcemap: api.SourceMapInline,
-		// Watch: &api.WatchMode{
-		// 	OnRebuild: func(result api.BuildResult) {
-		// 		log.Printf("rebuilt: %#v", result)
-		// 	},
-		// },
 	}
 
 	_ suture.Service = (*ESBuilderServer)(nil)
@@ -76,7 +71,6 @@ func MakeAssetHandler() (handler fiber.Handler, err error) {
 		esbuildOptions.LogLevel = api.LogLevelWarning
 	}
 
-	log.Printf("server=%#v options=%#v", server, esbuildOptions)
 	Supervisor.Add(server)
 
 	return
