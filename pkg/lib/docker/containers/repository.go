@@ -3,11 +3,13 @@ package containers
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/adirelle/docker-graph/pkg/lib/docker/connections"
 	myEvents "github.com/adirelle/docker-graph/pkg/lib/docker/events"
 	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/client"
 	"github.com/thejerf/suture/v4"
 )
 
@@ -93,15 +95,30 @@ func (r *Repository) primeNewReceiver(receiver myEvents.Receiver) {
 }
 
 func (c processMessageCmd) Execute(r *Repository, ctx context.Context) error {
-	when := time.Unix(0, c.msg.TimeNano)
-	switch {
-	case c.msg.Type == "container" && c.msg.Action == "destroy":
-		r.commands <- removeCmd{ID(c.msg.ID), when}
-	case c.msg.Type == "container":
-		r.commands <- inspectCmd{ID(c.msg.ID), when}
-	case c.msg.Type == "network" && c.msg.Action == "connect",
-		c.msg.Type == "network" && c.msg.Action == "disconnect":
-		r.commands <- inspectCmd{ID(c.msg.Actor.Attributes["containers"]), when}
+	if cmd := c.handleMessage(c.msg); cmd != nil {
+		log.Printf("message %s:%s(%s) => %v", c.msg.Type, c.msg.Action, c.msg.ID, cmd)
+		r.commands <- cmd
+	} else {
+		log.Printf("ignored %s:%s message", c.msg.Type, c.msg.Action)
+	}
+	return nil
+}
+
+func (c processMessageCmd) handleMessage(msg events.Message) repoCommand {
+	when := time.Unix(0, msg.TimeNano)
+	switch msg.Type {
+	case "container":
+		if msg.Action == "destroy" {
+			return removeCmd{ID(msg.ID), when}
+		}
+		if msg.Action == "attach" || msg.Action == "detach" || strings.HasPrefix(msg.Action, "exec_") {
+			return nil
+		}
+		return inspectCmd{ID(msg.ID), when}
+	case "network":
+		if msg.Action == "connect" || msg.Action == "disconnect" {
+			return inspectCmd{ID(c.msg.Actor.Attributes["containers"]), when}
+		}
 	}
 	return nil
 }
@@ -113,7 +130,15 @@ func (c inspectCmd) Execute(r *Repository, ctx context.Context) error {
 	}
 	data, err := r.conn.ContainerInspect(ctx, string(c.id))
 	if err != nil {
+		if client.IsErrNotFound(err) {
+			r.commands <- removeCmd(c)
+			return nil
+		}
 		return err
+	}
+	if data.State.Status == "removing" {
+		r.commands <- removeCmd(c)
+		return nil
 	}
 	if !found {
 		ctn = NewContainer(data)

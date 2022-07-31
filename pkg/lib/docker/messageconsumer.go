@@ -59,7 +59,7 @@ func (m *MessageConsumer) Serve(ctx context.Context) error {
 }
 
 func (m *MessageConsumer) prime(ctx context.Context, conn connections.Connection) error {
-	containers, err := conn.ContainerList(ctx, types.ContainerListOptions{All: true, Since: m.lastMessageTime.Format(time.RFC3339Nano)})
+	containers, err := conn.ContainerList(ctx, types.ContainerListOptions{All: true, Since: "1"})
 	if err != nil {
 		return err
 	}
