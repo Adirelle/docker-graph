@@ -1,8 +1,0 @@
-make --dry-run --always-make --keep-going --print-directory
-make: Entering directory '/home/guillaume.perreal/src/adirelle/docker-graph'
-go get -v ./...
-bun install
-go generate -x ./...
-go build -v ./src/go/cli/docker-graph
-make: Leaving directory '/home/guillaume.perreal/src/adirelle/docker-graph'
- 
