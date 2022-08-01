@@ -1,4 +1,4 @@
-package docker
+package listeners
 
 import (
 	"context"
@@ -10,10 +10,12 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/thejerf/suture/v4"
+
+	log "github.com/inconshreveable/log15"
 )
 
 type (
-	MessageConsumer struct {
+	Listener struct {
 		connFactory     connections.Factory
 		repository      *containers.Repository
 		lastMessageTime time.Time
@@ -21,22 +23,24 @@ type (
 )
 
 var (
-	_ suture.Service = (*MessageConsumer)(nil)
-	_ fmt.GoStringer = (*MessageConsumer)(nil)
+	_ suture.Service = (*Listener)(nil)
+	_ fmt.GoStringer = (*Listener)(nil)
+
+	Log = log.New()
 )
 
-func NewMessageConsumer(connFactory connections.Factory, repository *containers.Repository) *MessageConsumer {
-	return &MessageConsumer{
+func NewListener(connFactory connections.Factory, repository *containers.Repository) *Listener {
+	return &Listener{
 		connFactory: connFactory,
 		repository:  repository,
 	}
 }
 
-func (m *MessageConsumer) GoString() string {
-	return "MessageConsumer"
+func (m *Listener) GoString() string {
+	return "Listener"
 }
 
-func (m *MessageConsumer) Serve(ctx context.Context) error {
+func (m *Listener) Serve(ctx context.Context) error {
 	conn, err := m.connFactory.CreateConn()
 	if err != nil {
 		return err
@@ -55,7 +59,7 @@ func (m *MessageConsumer) Serve(ctx context.Context) error {
 	for {
 		select {
 		case msg := <-eventC:
-			// log.Printf("received %s:%s message (%s)", msg.Type, msg.Action, msg.Actor.ID)
+			Log.Debug("received message", "type", msg.Type, "action", msg.Action, "actor_id", msg.Actor.ID)
 			m.lastMessageTime = time.Unix(0, msg.TimeNano)
 			m.repository.Process(msg)
 		case err = <-errC:
@@ -66,7 +70,7 @@ func (m *MessageConsumer) Serve(ctx context.Context) error {
 	}
 }
 
-func (m *MessageConsumer) prime(ctx context.Context, conn connections.Connection) error {
+func (m *Listener) prime(ctx context.Context, conn connections.Connection) error {
 	containers, err := conn.ContainerList(ctx, types.ContainerListOptions{All: true, Since: "1"})
 	if err != nil {
 		return err

@@ -2,7 +2,6 @@ package containers
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -78,7 +77,6 @@ func (c *Container) Update(data types.ContainerJSON, when time.Time) (changed bo
 	if status := Status(data.State.Status); c.Status != status {
 		c.Status = status
 		changed = true
-		log.Printf("status=%s", status)
 		if status.IsRemoved() {
 			c.RemovedAt = when
 		}
@@ -104,7 +102,7 @@ func (c *Container) Init(container types.ContainerJSON) {
 	if when, err := time.Parse(time.RFC3339Nano, container.Created); err == nil {
 		c.CreatedAt = when
 	} else {
-		log.Printf("invalid created timestamp: %s", container.Created)
+		Log.Warn("invalid created timestamp", "timestamp", container.Created, "error", err)
 		c.CreatedAt = time.Now()
 	}
 	c.Name = container.Name[1:]
@@ -143,10 +141,10 @@ func (c *Container) readPorts(ports nat.PortMap) {
 			if portNum, err := strconv.Atoi(portBinding.HostPort); err == nil {
 				c.Ports[string(exposed)] = Port{portBinding.HostIP, portNum}
 			} else {
-				log.Printf("invalid port number: `%s`: %s", portBinding.HostPort, err)
+				Log.Warn("invalid port number", "port", portBinding.HostPort, "error", err)
 			}
 		} else if !ok {
-			log.Printf("unknown port binding value: %#v", value)
+			Log.Error("unknown port binding value", "value", value)
 		}
 	}
 }

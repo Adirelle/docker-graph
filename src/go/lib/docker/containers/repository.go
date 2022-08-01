@@ -3,7 +3,6 @@ package containers
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -12,7 +11,13 @@ import (
 	"github.com/adirelle/docker-graph/src/go/lib/utils"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
+	log "github.com/inconshreveable/log15"
 	"github.com/thejerf/suture/v4"
+)
+
+var (
+	Log       = log.New()
+	LoggerKey = struct{}{}
 )
 
 type (
@@ -89,10 +94,16 @@ func (r *Repository) primeNewReceiver(receiver myEvents.Receiver) {
 }
 
 func (r *Repository) handleMessage(msg events.Message, ctx context.Context) error {
-	if r.doHandleMessage(msg, ctx) {
-		log.Printf("handled message %s:%s(%s)", msg.Type, msg.Action, msg.ID)
+	logger := Log.New(log.Ctx{
+		"type":   msg.Type,
+		"action": msg.Action,
+		"id":     msg.ID,
+	})
+	subCtx := context.WithValue(ctx, LoggerKey, logger)
+	if r.doHandleMessage(msg, subCtx) {
+		logger.Debug("handled message")
 	} else {
-		log.Printf("ignored %s:%s message", msg.Type, msg.Action)
+		logger.Debug("ignored message")
 	}
 	return nil
 }
@@ -137,21 +148,21 @@ func (r *Repository) updateContainer(id ID, when time.Time, ctx context.Context)
 			},
 		}
 		r.containers[id] = t
-		log.Printf("added container: %s", id)
+		ctx.Value(LoggerKey).(log.Logger).Info("added container", "id", id)
 	}
 	t.Trigger()
 }
 
 func (r *Repository) inspectContainer(t *tracker, when time.Time, ctx context.Context) {
-	log.Printf("inspecting container: %s", t.ID)
+	Log.Debug("inspecting container", "id", t.ID)
 	data, err := r.conn.ContainerInspect(ctx, string(t.ID))
 	if err != nil {
 		if !client.IsErrNotFound(err) {
-			log.Println(err)
+			log.Error("errror inspecting container", "id", t.ID, "error", err)
 		}
 		return
 	}
-	log.Printf("updating container: %s, %#v", t.ID, data)
+	Log.Debug("updating container", "id", t.ID)
 	changed := t.Update(data, when)
 	if t.IsRemoved() {
 		r.removeContainer(t.ID, when, ctx)
@@ -168,6 +179,6 @@ func (r *Repository) removeContainer(id ID, when time.Time, ctx context.Context)
 	t.Stop()
 	delete(r.containers, id)
 	t.Container.RemovedAt = when
-	log.Printf("removed container: %s", id)
+	Log.Debug("removed container", "id", id)
 	r.Emitter.Emit(myEvents.MakeContainerRemovedEvent(id, when))
 }

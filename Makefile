@@ -1,32 +1,21 @@
-export GOPATH = $(abspath .direnv/go)
-
-GO_SOURCES = $(shell find src/go/lib -name *.go)
-GO_TARGET = docker-graph
-GO_CLI_SRC = src/go/cli/docker-graph
-
-TS_SOURCES = $(shell find src/ts -name *.ts)
-ASSETS = $(shell find public)
-
 # PHONY targets
 
-.PHONY: all build clean cleaner
+.PHONY: all build server clean cleaner
 
 all: build
 
-build: $(GO_TARGET)
+build:
+	bun install
+	go get ./...
+	go generate -x ./...
+	go build ./src/go/cli/docker-graph
+
+serve:
+	docker composer up --build --detach
 
 clean:
-	rm -fr $(GO_TARGET)
+	rm -fr docker-graph public/js/index.js node_modules.bun
 
 cleaner: clean
-	if [ -d .direnv ]; then chmod -R u+w .direnv; fi
-	rm -fr node_modules .direnv
+	rm -fr node_modules
 
-# File targets
-
-$(GO_TARGET): $(GO_SOURCES) $(GO_CLI_SRC) $(TS_SOURCES) $(ASSETS) node_modules
-	go generate -x ./...
-	go build ./$(GO_CLI_SRC)
-
-node_modules: package.json bun.lockb
-	bun install

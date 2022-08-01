@@ -1,7 +1,9 @@
 package connections
 
 import (
-	"log"
+	"context"
+
+	log "github.com/inconshreveable/log15"
 
 	"github.com/docker/docker/client"
 )
@@ -13,6 +15,8 @@ type (
 var (
 	_ Factory    = (BasicFactory)(nil)
 	_ Connection = (*client.Client)(nil)
+
+	Log = log.New()
 )
 
 func MakeBasicFactory(opts ...client.Opt) BasicFactory {
@@ -24,6 +28,15 @@ func (f BasicFactory) CreateConn() (Connection, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println("Opened connection")
+	ping, err := client.Ping(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	log.Info("opened connection", log.Ctx{
+		"host":            client.DaemonHost(),
+		"api_version":     ping.APIVersion,
+		"builder_version": ping.BuilderVersion,
+		"os_type":         ping.OSType,
+	})
 	return client, nil
 }

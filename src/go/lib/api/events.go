@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 
 	"github.com/adirelle/docker-graph/src/go/lib/docker/events"
 	"github.com/gofiber/fiber/v2"
+
+	log "github.com/inconshreveable/log15"
 )
 
 type (
@@ -22,12 +23,17 @@ type (
 	}
 )
 
-func MountAPI(mnt fiber.Router, source *events.Emitter) {
-	api := &API{source}
-	mnt.Get("/events", api.streamEvents)
+func NewAPI(source *events.Emitter) *API {
+	return &API{source}
+}
+
+func (a *API) MountInto(mnt fiber.Router) {
+	mnt.Get("/events", a.streamEvents)
 }
 
 func (a *API) streamEvents(ctx *fiber.Ctx) error {
+	logger := ctx.Locals("logger").(log.Logger)
+
 	ctx.Set("Content-Type", "text/event-stream")
 	ctx.Set("Cache-Control", "no-cache")
 	ctx.Set("Connection", "keep-alive")
@@ -37,7 +43,7 @@ func (a *API) streamEvents(ctx *fiber.Ctx) error {
 		var err error
 		defer func() {
 			if err != nil && err != io.EOF {
-				log.Println(err)
+				logger.Error("streaming error", err)
 			}
 		}()
 
@@ -62,7 +68,7 @@ func (a *API) streamEvents(ctx *fiber.Ctx) error {
 			if err = output.Flush(); err != nil {
 				return
 			}
-			log.Printf("sent event: %#v", event)
+			logger.Debug("sent event", "event", event)
 		}
 	})
 

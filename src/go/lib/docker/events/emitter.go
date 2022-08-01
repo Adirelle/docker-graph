@@ -3,9 +3,13 @@ package events
 import (
 	"context"
 	"fmt"
-	"log"
 
+	log "github.com/inconshreveable/log15"
 	"github.com/thejerf/suture/v4"
+)
+
+var (
+	Log = log.New()
 )
 
 type (
@@ -80,7 +84,13 @@ func (e *Emitter) Emit(event Event) {
 }
 
 func (c emitCommand) Execute(e *Emitter, ctx context.Context) {
-	log.Printf("emitting %s:%s event", c.event.TargetType, c.event.Type)
+	Log.Debug("emitting event", log.Ctx{
+		"target_type": c.event.TargetType,
+		"target_id":   c.event.TargetID,
+		"event_time":  c.event.Time,
+		"event_type":  c.event.Type,
+		"details":     c.event.Details,
+	})
 	for receiver := range e.receivers {
 		go receiver.Receive(c.event, ctx)
 	}
