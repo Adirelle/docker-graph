@@ -1,7 +1,8 @@
 {
   "name": "docker-graph",
   "version": "0.0.1",
-  "module": "src/ts/index.js",
+  "browser": "src/ts/index.js",
+  "repository": "github:Adirelle/docker-graph",
   "devDependencies": {
     "bun-types": "latest",
     "esbuild": "^0.14.51"
@@ -10,8 +11,6 @@
     "force-graph": "^1.42.11"
   },
   "scripts": {
-    "build": "bun run esbuild --minify",
-    "dev": "bun run esbuild --sourcemap=inline --watch",
-    "esbuild": "esbuild src/index.ts --bundle --platform=browser --outfile=public/app/index.js"
+    "build": "esbuild src/ts/index.ts --minify --bundle --platform=browser --outfile=public/js/index.js"
   }
 }

@@ -10,14 +10,18 @@
 
 # Building
 
+This generates the all-in-one binary `docker-graph`:
+
 ```shell
 make build
 ```
 
-# Tweaking
+# Developping
+
+This launches a developpement server with live-reload listening on http://localost:8080:
 
 ```shell
-make dev
+make serve
 ```
 
 # License

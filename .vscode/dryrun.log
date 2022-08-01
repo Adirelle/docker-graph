@@ -1,9 +1,8 @@
 make --dry-run --always-make --keep-going --print-directory
-make: Entering directory '/home/guillaume/src/adirelle/docker-graph'
-go install github.com/cortesi/modd/cmd/modd@latest
+make: Entering directory '/home/guillaume.perreal/src/adirelle/docker-graph'
 go get -v ./...
-cd app && bun install
+bun install
 go generate -x ./...
-go build -v ./pkg/cli/docker-graph
-make: Leaving directory '/home/guillaume/src/adirelle/docker-graph'
+go build -v ./src/go/cli/docker-graph
+make: Leaving directory '/home/guillaume.perreal/src/adirelle/docker-graph'
  

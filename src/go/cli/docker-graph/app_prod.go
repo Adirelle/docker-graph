@@ -8,9 +8,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 
-	"github.com/adirelle/docker-graph/app"
+	assets "github.com/adirelle/docker-graph"
 )
 
 func MountAssets(app *fiber.App) {
-	app.Use("/", filesystem.New(filesystem.Config{Root: http.FS(app.Assets), PathPrefix: "/public"}))
+	app.Use("/", filesystem.New(filesystem.Config{Root: http.FS(assets.Assets), PathPrefix: "/public"}))
 }

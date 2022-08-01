@@ -6,7 +6,7 @@ const labelRenderer = new TextRenderer({ baseline: "top" });
 
 const iconRenderer = new TextRenderer({
   font: "Font Awesome 6 Free",
-  baseSize: 24,
+  baseSize: 32,
   dynamic: false,
 });
 

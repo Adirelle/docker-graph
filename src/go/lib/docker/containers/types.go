@@ -136,10 +136,32 @@ func (c *Container) readMounts(baseDir string, mounts []types.MountPoint) {
 
 func (c *Container) readPorts(ports nat.PortMap) {
 	c.Ports = make(map[string]Port, len(ports))
-	for key, port := range ports {
-		portNum, _ := strconv.Atoi(port[0].HostPort)
-		c.Ports[string(key)] = Port{port[0].HostIP, portNum}
+	for exposed, value := range ports {
+		// According to the package, port should be an array of PortBinding
+		// However, it does not seems to complu
+		if portBinding, ok := getPortBinding(value); ok && portBinding != nil {
+			if portNum, err := strconv.Atoi(portBinding.HostPort); err == nil {
+				c.Ports[string(exposed)] = Port{portBinding.HostIP, portNum}
+			} else {
+				log.Printf("invalid port number: `%s`: %s", portBinding.HostPort, err)
+			}
+		} else if !ok {
+			log.Printf("unknown port binding value: %#v", value)
+		}
 	}
+}
+
+func getPortBinding(something interface{}) (*nat.PortBinding, bool) {
+	switch value := something.(type) {
+	case nat.PortBinding:
+		return &value, true
+	case []nat.PortBinding:
+		if len(value) == 0 {
+			return nil, true
+		}
+		return &(value[0]), true
+	}
+	return nil, false
 }
 
 func (c *Container) updateNetworks(networks map[string]*network.EndpointSettings) (changed bool) {

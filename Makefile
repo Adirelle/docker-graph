@@ -1,31 +1,43 @@
-BUILD_FLAGS = -v
-GENERATE_FLAGS = -x
+export GOPATH = $(abspath .direnv/go)
 
-.PHONY: all clean build generate dev prereq modd get node_modules
+GO_SOURCES = $(shell find src/go/lib -name *.go)
+GO_TARGET = docker-graph
+GO_CLI_SRC = src/go/cli/docker-graph
+
+TS_SOURCES = $(shell find src/ts -name *.ts)
+ASSETS = $(shell find public)
+
+# PHONY targets
+
+.PHONY: all build clean cleaner serve devtools
 
 all: build
 
+build: $(GO_TARGET)
+
 clean:
-	rm -fr docker-graph
+	rm -fr $(GO_TARGET)
 
 cleaner: clean
-	rm -fr node_modules
+	if [ -d .direnv ]; then chmod -R u+w .direnv; fi
+	rm -fr node_modules .direnv
 
-build: generate get
-	go build $(BUILD_FLAGS) ./src/go/cli/docker-graph
+serve: node_modules.bun devtools
+	modd
 
-generate: get node_modules
-	go generate $(GENERATE_FLAGS) ./...
+devtools: $(GOPATH)/bin/modd
 
-dev: devtools get node_modules
-	modd -f pkg/cli/docker-graph/modd.conf
+# File targets
 
-get:
-	go get -v ./...
+$(GO_TARGET): $(GO_SOURCES) $(GO_CLI_SRC) $(TS_SOURCES) $(ASSETS)
+	go generate -x ./...
+	go build ./$(GO_CLI_SRC)
 
-node_modules:
+node_modules.bun: node_modules
+	bun bun
+
+node_modules: package.json bun.lockb
 	bun install
 
-devtools:
+$(GOPATH)/bin/modd:
 	go install github.com/cortesi/modd/cmd/modd@latest
-	go install github.com/cortesi/devd/cmd/devd@latest

@@ -1,2 +1,4 @@
 /docker-graph
-/node_modules
+/node_modules*
+/public/js/
+/.direnv

@@ -8,11 +8,11 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/adirelle/docker-graph/pkg/lib/api"
-	"github.com/adirelle/docker-graph/pkg/lib/docker"
-	"github.com/adirelle/docker-graph/pkg/lib/docker/connections"
-	"github.com/adirelle/docker-graph/pkg/lib/docker/containers"
-	"github.com/adirelle/docker-graph/pkg/lib/docker/events"
+	"github.com/adirelle/docker-graph/src/go/lib/api"
+	"github.com/adirelle/docker-graph/src/go/lib/docker"
+	"github.com/adirelle/docker-graph/src/go/lib/docker/connections"
+	"github.com/adirelle/docker-graph/src/go/lib/docker/containers"
+	"github.com/adirelle/docker-graph/src/go/lib/docker/events"
 	"github.com/docker/docker/client"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
@@ -34,13 +34,15 @@ var (
 	Debug   = false
 	Verbose = false
 	Quiet   = false
+
+	httpAddr string
 )
 
 func main() {
 	flag.BoolVar(&Debug, "debug", false, "Enable ")
 	flag.BoolVar(&Verbose, "verbose", false, "Be more verbose")
 	flag.BoolVar(&Quiet, "quiet", false, "Disable all output messages but warnings and errors")
-	httpAddr := flag.String("bind", ":8080", "Listening address")
+	flag.StringVar(&httpAddr, "bind", ":8080", "Listening address")
 	flag.Parse()
 
 	Quiet = Quiet && !Debug
@@ -65,6 +67,7 @@ func main() {
 		AppName:               "docker-graph",
 		ErrorHandler:          handleError,
 		DisableStartupMessage: Quiet,
+		EnablePrintRoutes:     Debug,
 	})
 	app.Get("/favicon.ico", favicon.New())
 	if Verbose {
@@ -76,7 +79,7 @@ func main() {
 	api.MountAPI(app.Group("/api"), eventEmitter)
 	MountAssets(app)
 
-	webserver := NewServer(*httpAddr, app)
+	webserver := NewServer(httpAddr, app)
 	spv.Add(webserver)
 
 	if err := spv.Serve(ctx); err != nil {

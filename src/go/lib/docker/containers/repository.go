@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adirelle/docker-graph/pkg/lib/docker/connections"
-	myEvents "github.com/adirelle/docker-graph/pkg/lib/docker/events"
-	"github.com/adirelle/docker-graph/pkg/lib/utils"
+	"github.com/adirelle/docker-graph/src/go/lib/docker/connections"
+	myEvents "github.com/adirelle/docker-graph/src/go/lib/docker/events"
+	"github.com/adirelle/docker-graph/src/go/lib/utils"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
 	"github.com/thejerf/suture/v4"

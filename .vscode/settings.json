@@ -1,10 +1,10 @@
 {
-    "go.buildTags": "dev",
-    "typescript.disableAutomaticTypeAcquisition": false,
-    "typescript.check.npmIsInstalled": false,
-    "js/ts.implicitProjectConfig.target": "ES2020",
-    "typescript.implementationsCodeLens.enabled": true,
-    "typescript.workspaceSymbols.scope": "currentProject",
-    "javascript.format.semicolons": "insert",
-    "typescript.format.semicolons": "insert"
+  "go.buildTags": "dev",
+  "typescript.disableAutomaticTypeAcquisition": false,
+  "typescript.check.npmIsInstalled": false,
+  "js/ts.implicitProjectConfig.target": "ES2020",
+  "typescript.implementationsCodeLens.enabled": true,
+  "typescript.workspaceSymbols.scope": "currentProject",
+  "javascript.format.semicolons": "insert",
+  "typescript.format.semicolons": "insert"
 }

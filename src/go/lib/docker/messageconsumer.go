@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/adirelle/docker-graph/pkg/lib/docker/connections"
-	"github.com/adirelle/docker-graph/pkg/lib/docker/containers"
+	"github.com/adirelle/docker-graph/src/go/lib/docker/connections"
+	"github.com/adirelle/docker-graph/src/go/lib/docker/containers"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/thejerf/suture/v4"

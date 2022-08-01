@@ -8,7 +8,7 @@ import (
 	"io"
 	"log"
 
-	"github.com/adirelle/docker-graph/pkg/lib/docker/events"
+	"github.com/adirelle/docker-graph/src/go/lib/docker/events"
 	"github.com/gofiber/fiber/v2"
 )
 
