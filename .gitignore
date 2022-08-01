@@ -16,3 +16,5 @@
 
 # Binary
 /docker-graph
+
+/app/node_modules
