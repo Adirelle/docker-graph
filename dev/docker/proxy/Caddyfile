@@ -1,0 +1,31 @@
+{
+	debug
+	auto_https off
+	log {
+		output stderr
+		format console
+		level debug
+	}
+}
+
+:80 {
+	log {
+		output stdout
+		format console
+		level debug
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		root * /var/www
+		rewrite /js/index.js /src/ts/index.ts
+		file_server {
+			index index.html
+			pass_thru
+		}
+		reverse_proxy frontend:3000
+	}
+}

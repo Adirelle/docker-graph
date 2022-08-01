@@ -9,7 +9,7 @@ ASSETS = $(shell find public)
 
 # PHONY targets
 
-.PHONY: all build clean cleaner serve devtools
+.PHONY: all build clean cleaner
 
 all: build
 
@@ -22,22 +22,11 @@ cleaner: clean
 	if [ -d .direnv ]; then chmod -R u+w .direnv; fi
 	rm -fr node_modules .direnv
 
-serve: node_modules.bun devtools
-	modd
-
-devtools: $(GOPATH)/bin/modd
-
 # File targets
 
 $(GO_TARGET): $(GO_SOURCES) $(GO_CLI_SRC) $(TS_SOURCES) $(ASSETS)
 	go generate -x ./...
 	go build ./$(GO_CLI_SRC)
 
-node_modules.bun: node_modules
-	bun bun
-
 node_modules: package.json bun.lockb
 	bun install
-
-$(GOPATH)/bin/modd:
-	go install github.com/cortesi/modd/cmd/modd@latest

@@ -1,0 +1,40 @@
+services:
+
+  backend:
+    build: dev/docker/backend
+    restart: unless-stopped
+    init: true
+    volumes:
+      - .:/src:ro
+      - backend_cache:/go
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  frontend:
+    image: jarredsumner/bun:edge
+    restart: unless-stopped
+    working_dir: /src
+    init: true
+    command:
+      - /bin/sh
+      - "-c"
+      - |
+        bun install;
+        bun bun -c bunfig.toml;
+        bun dev -c bunfig.toml;
+    volumes:
+      - .:/src
+
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - 8080:80/tcp
+    volumes:
+      - ./dev/docker/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./public:/var/www:ro
+      - proxy_data:/data
+
+volumes:
+  backend_cache: ~
+
+  proxy_data: ~

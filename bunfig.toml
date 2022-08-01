@@ -1,7 +1,2 @@
-logLevel = "debug"
-
 [bundle]
 entryPoints = ["src/ts/index.ts"]
-
-[debug]
-editor = "code"

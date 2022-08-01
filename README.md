@@ -2,13 +2,13 @@
 
 ## Building from sources
 
-# Prereqs
+# Building
+
+Prereqs:
 
 - [Go 1.18+](https://go.dev/dl/)
 - [Bun](https://bun.sh/)
 - Make
-
-# Building
 
 This generates the all-in-one binary `docker-graph`:
 
@@ -18,10 +18,14 @@ make build
 
 # Developping
 
+Prereqs:
+
+- docker-compose
+
 This launches a developpement server with live-reload listening on http://localost:8080:
 
 ```shell
-make serve
+docker-compose up --build -d
 ```
 
 # License
