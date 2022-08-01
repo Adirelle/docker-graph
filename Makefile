@@ -24,7 +24,7 @@ cleaner: clean
 
 # File targets
 
-$(GO_TARGET): $(GO_SOURCES) $(GO_CLI_SRC) $(TS_SOURCES) $(ASSETS)
+$(GO_TARGET): $(GO_SOURCES) $(GO_CLI_SRC) $(TS_SOURCES) $(ASSETS) node_modules
 	go generate -x ./...
 	go build ./$(GO_CLI_SRC)
 
