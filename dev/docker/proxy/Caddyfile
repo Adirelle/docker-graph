@@ -1,10 +1,8 @@
 {
-	debug
 	auto_https off
 	log {
 		output stderr
 		format console
-		level debug
 	}
 }
 
@@ -12,7 +10,6 @@
 	log {
 		output stdout
 		format console
-		level debug
 	}
 
 	handle /api/* {
