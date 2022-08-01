@@ -31,10 +31,9 @@ type (
 var (
 	_ suture.Service = (*Server)(nil)
 
-	Supervisor = suture.NewSimple("docker-graph")
-	Debug      = false
-	Verbose    = false
-	Quiet      = false
+	Debug   = false
+	Verbose = false
+	Quiet   = false
 )
 
 func main() {
@@ -51,14 +50,16 @@ func main() {
 
 	connFactory := connections.MakeBasicFactory(client.FromEnv)
 
+	spv := suture.NewSimple("docker-graph")
+
 	eventEmitter := events.NewEmitter()
-	Supervisor.Add(eventEmitter)
+	spv.Add(eventEmitter)
 
 	containerRepo := containers.NewRepository(eventEmitter, connFactory)
-	Supervisor.Add(containerRepo)
+	spv.Add(containerRepo)
 
 	messageConsumer := docker.NewMessageConsumer(connFactory, containerRepo)
-	Supervisor.Add(messageConsumer)
+	spv.Add(messageConsumer)
 
 	app := fiber.New(fiber.Config{
 		AppName:               "docker-graph",
@@ -73,16 +74,12 @@ func main() {
 		app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	}
 	api.MountAPI(app.Group("/api"), eventEmitter)
-	if assetHandler, err := MakeAssetHandler(); err == nil {
-		app.Use("/", assetHandler)
-	} else {
-		log.Fatal(err)
-	}
+	MountAssets(app)
 
 	webserver := NewServer(*httpAddr, app)
-	Supervisor.Add(webserver)
+	spv.Add(webserver)
 
-	if err := Supervisor.Serve(ctx); err != nil {
+	if err := spv.Serve(ctx); err != nil {
 		log.Fatalf("Exiting: %s", err)
 	}
 }

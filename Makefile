@@ -6,25 +6,26 @@ GENERATE_FLAGS = -x
 all: build
 
 clean:
-	rm -f docker-graph app/public/script.*
+	rm -fr docker-graph
 
 cleaner: clean
-	rm -fr app/node_modules
+	rm -fr node_modules
 
 build: generate get
-	go build $(BUILD_FLAGS) ./pkg/cli/docker-graph
+	go build $(BUILD_FLAGS) ./src/go/cli/docker-graph
 
 generate: get node_modules
 	go generate $(GENERATE_FLAGS) ./...
 
-dev: modd get node_modules
+dev: devtools get node_modules
 	modd -f pkg/cli/docker-graph/modd.conf
 
 get:
 	go get -v ./...
 
 node_modules:
-	cd app && bun install
+	bun install
 
-modd:
+devtools:
 	go install github.com/cortesi/modd/cmd/modd@latest
+	go install github.com/cortesi/devd/cmd/devd@latest

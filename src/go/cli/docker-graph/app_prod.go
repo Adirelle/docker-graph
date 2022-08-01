@@ -11,6 +11,6 @@ import (
 	"github.com/adirelle/docker-graph/app"
 )
 
-func MakeAssetHandler() (fiber.Handler, error) {
-	return filesystem.New(filesystem.Config{Root: http.FS(app.Assets), PathPrefix: "/public"}), nil
+func MountAssets(app *fiber.App) {
+	app.Use("/", filesystem.New(filesystem.Config{Root: http.FS(app.Assets), PathPrefix: "/public"}))
 }
