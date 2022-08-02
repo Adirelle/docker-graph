@@ -1,2 +1,2 @@
-export { ContainerNode } from "./container";
+export { GraphData } from "./graphData";
 export * from "./types";

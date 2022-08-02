@@ -20,7 +20,6 @@
 		root * /var/www
 		rewrite /js/index.js /src/ts/index.ts
 		file_server {
-			index index.html
 			pass_thru
 		}
 		reverse_proxy frontend:3000

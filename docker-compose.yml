@@ -28,7 +28,7 @@ services:
     image: caddy:2
     restart: unless-stopped
     ports:
-      - 8080:80/tcp
+      - "127.0.0.1:8080:80/tcp"
     volumes:
       - ./dev/docker/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./public:/var/www:ro

@@ -1,7 +1,7 @@
 import { GraphData as ForceGraphData } from "force-graph";
 import { Event } from "../api";
 import { BaseLink } from "./baseLink";
-import { ContainerNode } from "./container";
+import { ContainerNode } from "./nodes/container";
 import { AnyLink, AnyNode, Context, ID, Link, LinkFrom, Node } from "./types";
 
 export class GraphData implements Context {
@@ -10,7 +10,7 @@ export class GraphData implements Context {
 
   private dirty = false;
 
-  public constructor() {}
+  public constructor() { }
 
   public data(): ForceGraphData {
     this.dirty = false;
@@ -27,7 +27,7 @@ export class GraphData implements Context {
     if (event.Type == "removed") {
       this.removeNodeByID(event.TargetID);
     } else {
-      this.getOrCreateNode(event.TargetID, ContainerNode, event.Details);
+      this.getOrCreateNode(event.TargetID, (m) => new ContainerNode(m), event.Details);
     }
     return this.dirty;
   }
@@ -64,12 +64,12 @@ export class GraphData implements Context {
 
   public getOrCreateNode<N extends Node<T>, T>(
     id: ID<T>,
-    builder: new (data: T) => N,
+    builder: (data: T) => N,
     data: T
   ): N {
     let node = this.nodes.get(id) as N;
     if (!node) {
-      node = new builder(data);
+      node = builder(data);
       this.nodes.set(id, node);
       console.debug("new node", node);
       this.markDirty();

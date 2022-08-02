@@ -1,4 +1,3 @@
-import { TranscodeEncoding } from "buffer";
 
 export interface EventBase {
   TargetID: string;
@@ -31,13 +30,17 @@ export interface Container {
   Healty: string;
   Service?: string;
   Project?: string;
-  Networks?: { [path: string]: Network };
+  Networks?: Networks;
   Mounts?: Mount[];
-  Ports?: { [def: string]: Port };
+  Ports?: Ports;
 }
 
 export interface ContainerList {
   Containers: Array<string>;
+}
+
+export interface Networks {
+  [path: string]: Network;
 }
 
 export interface Network {
@@ -53,12 +56,21 @@ export interface Mount {
   ReadWrite: boolean;
 }
 
-export interface Volume {
-  Id: string;
-  Name: string;
+export interface Ports {
+  [def: string]: Port;
 }
 
 export interface Port {
   HostIp: string;
   HostPort: number;
+}
+
+const idRegexp = /^[0-9a-f]{64}$/;
+
+export function isID(what: string): boolean {
+  return idRegexp.test(what);
+}
+
+export function shortIDOrName(idOrName: string): string {
+  return isID(idOrName) ? idOrName.substring(0, 8) : idOrName;
 }

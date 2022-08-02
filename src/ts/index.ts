@@ -1,12 +1,12 @@
 import ForceGraph, { LinkObject, NodeObject } from "force-graph";
 import type { Event } from "./api";
-import { Hideable, Renderable } from "./graph";
-import { GraphData } from "./graph/graphData";
+import { GraphData, Hideable, Renderable } from "./graph";
 
 const graphData = new GraphData();
 
 const forceGraph = ForceGraph();
 forceGraph(document.getElementById("graph"))
+  .nodeLabel("tooltip")
   .nodeCanvasObject((node: NodeObject, ctx, scale) =>
     (node as Renderable).render(ctx, scale)
   )
@@ -31,7 +31,7 @@ function update() {
 }
 
 const es = new EventSource("/api/events");
-es.addEventListener("message", ({ data }: { data: string }) => {
+es.addEventListener("message", ({ data }: { data: string; }) => {
   const event = JSON.parse(data) as Event;
   console.debug("event", event);
   if (graphData.process(event)) {

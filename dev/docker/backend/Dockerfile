@@ -6,4 +6,4 @@ RUN apt-get update -yq \
 RUN mkdir /src
 
 WORKDIR /src
-CMD find src/go | entr -n -r -d go run -tags dev ./src/go/cli/docker-graph -bind 0.0.0.0:8080 -logLevel debug -logColor always
+CMD find src/go | entr -n -r -d go run -tags dev ./src/go/cli/docker-graph -bind 0.0.0.0:8080 -logStderr debug -logColor always
