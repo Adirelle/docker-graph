@@ -11,7 +11,7 @@ build:
 	go build ./src/go/cli/docker-graph
 
 serve:
-	docker composer up --build --detach
+	docker compose up --build
 
 clean:
 	rm -fr docker-graph public/js/index.js node_modules.bun
