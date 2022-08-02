@@ -94,16 +94,16 @@ func (r *Repository) primeNewReceiver(receiver myEvents.Receiver) {
 }
 
 func (r *Repository) handleMessage(msg events.Message, ctx context.Context) error {
-	logger := Log.New(log.Ctx{
+	logger := Log.New(log.Ctx{"id": msg.ID})
+	msgLogger := logger.New(log.Ctx{
 		"type":   msg.Type,
 		"action": msg.Action,
-		"id":     msg.ID,
 	})
 	subCtx := context.WithValue(ctx, LoggerKey, logger)
 	if r.doHandleMessage(msg, subCtx) {
-		logger.Debug("handled message")
+		msgLogger.Debug("handled message")
 	} else {
-		logger.Debug("ignored message")
+		msgLogger.Debug("ignored message")
 	}
 	return nil
 }
@@ -140,7 +140,10 @@ func (r *Repository) updateContainer(id ID, when time.Time, ctx context.Context)
 			Container: Container{ID: id},
 			Debouncer: utils.Debouncer{
 				Func: func() {
-					inspectCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					inspectCtx, cancel := context.WithTimeout(
+						context.WithValue(context.Background(), LoggerKey, Log.New("id", id)),
+						5*time.Second,
+					)
 					defer cancel()
 					r.inspectContainer(t, when, inspectCtx)
 				},
@@ -148,7 +151,7 @@ func (r *Repository) updateContainer(id ID, when time.Time, ctx context.Context)
 			},
 		}
 		r.containers[id] = t
-		ctx.Value(LoggerKey).(log.Logger).Info("added container", "id", id)
+		ctx.Value(LoggerKey).(log.Logger).Info("added container")
 	}
 	t.Trigger()
 }
@@ -158,7 +161,7 @@ func (r *Repository) inspectContainer(t *tracker, when time.Time, ctx context.Co
 	data, err := r.conn.ContainerInspect(ctx, string(t.ID))
 	if err != nil {
 		if !client.IsErrNotFound(err) {
-			log.Error("errror inspecting container", "id", t.ID, "error", err)
+			Log.Error("errror inspecting container", "id", t.ID, "error", err)
 		}
 		return
 	}
@@ -179,6 +182,6 @@ func (r *Repository) removeContainer(id ID, when time.Time, ctx context.Context)
 	t.Stop()
 	delete(r.containers, id)
 	t.Container.RemovedAt = when
-	Log.Debug("removed container", "id", id)
+	Log.Debug("removed container")
 	r.Emitter.Emit(myEvents.MakeContainerRemovedEvent(id, when))
 }

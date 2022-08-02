@@ -36,10 +36,10 @@ func init() {
 	flag.Var(&bindPort, "bind", "Listening address")
 }
 
-func NewWebServer() (s *WebServer) {
+func NewWebServer(logger log.Logger) (s *WebServer) {
 	s = &WebServer{
 		address: bindPort.String(),
-		Logger:  Log.New("module", "webserver"),
+		Logger:  logger,
 	}
 
 	s.App = fiber.New(fiber.Config{
@@ -56,6 +56,7 @@ func NewWebServer() (s *WebServer) {
 func (s *WebServer) Serve(ctx context.Context) error {
 	subCtx, stop := context.WithCancel(ctx)
 	defer stop()
+	s.Logger.Info("listening", "address", s.address)
 
 	go func() {
 		<-subCtx.Done()
