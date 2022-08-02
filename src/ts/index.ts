@@ -1,14 +1,12 @@
 import ForceGraph, { NodeObject } from "force-graph";
 import type { Event } from "./api";
 import { EventProcessor } from "./eventProcessor";
-import { GraphData, Mapper, Updater } from "./graph";
+import { GraphData, GraphUpdater } from "./graph";
 import { NodeModel } from "./models";
 import { NodePainter, TextRenderer } from "./paint/index";
 
 const graph = new GraphData();
-const updater = new Updater(graph);
-const mapper = new Mapper();
-const processor = new EventProcessor(graph, mapper, updater);
+const processor = new EventProcessor(() => new GraphUpdater(graph));
 
 const nodePainter = new NodePainter(
   new TextRenderer(),

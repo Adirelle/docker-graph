@@ -37,7 +37,7 @@ export interface Container {
 
 export interface Project {
   Name: string;
-  WorkdingDir: string;
+  WorkingDir: string;
 }
 
 export interface ContainerList {
@@ -68,14 +68,4 @@ export interface Ports {
 export interface Port {
   HostIp: string;
   HostPort: number;
-}
-
-const idRegexp = /^[0-9a-f]{64}$/;
-
-export function isID(what: string): boolean {
-  return idRegexp.test(what);
-}
-
-export function shortIDOrName(idOrName: string): string {
-  return isID(idOrName) ? idOrName.substring(0, 8) : idOrName;
 }

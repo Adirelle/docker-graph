@@ -16,7 +16,7 @@ export class GraphData implements GraphModel {
     const node = this.nodes.get(id);
     if (!node) return;
     this.nodes.delete(id);
-    console.debug("removed node", node);
+    console.debug("removed node", id);
 
     for (const link of this.links.values()) {
       if (link.source === node || link.target === node) {
@@ -30,7 +30,7 @@ export class GraphData implements GraphModel {
     if (!node) {
       node = { id } as NodeModel;
       this.nodes.set(id, node);
-      console.debug("added node", node);
+      console.debug("added node", id);
     }
     return node;
   }
@@ -42,7 +42,7 @@ export class GraphData implements GraphModel {
       const target = this.getOrCreateNode(targetID);
       link = { source, target };
       this.links.add(link);
-      console.debug("added link", link);
+      console.debug("added link", sourceID, '=>', targetID);
     }
     return link;
   }
@@ -68,6 +68,6 @@ export class GraphData implements GraphModel {
 
   public removeLink(link: LinkModel): void {
     if (!this.links.delete(link)) return;
-    console.debug("removed link", link);
+    console.debug("removed link", link.source.id, "=>", link.target.id);
   }
 }
