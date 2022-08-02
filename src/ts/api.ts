@@ -29,10 +29,15 @@ export interface Container {
   Image: string;
   Healty: string;
   Service?: string;
-  Project?: string;
+  Project?: Project;
   Networks?: Networks;
   Mounts?: Mount[];
   Ports?: Ports;
+}
+
+export interface Project {
+  Name: string;
+  WorkdingDir: string;
 }
 
 export interface ContainerList {

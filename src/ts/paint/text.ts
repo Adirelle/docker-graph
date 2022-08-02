@@ -75,8 +75,3 @@ export class ConstantSizeTextRenderer extends TextRenderer {
   }
 
 }
-
-export const labelTextRenderer = new TextRenderer();
-
-export const iconRenderer = new TextRenderer({ font: `FontAwesome`, size: 12 });
-

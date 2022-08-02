@@ -1,30 +1,30 @@
-import ForceGraph, { LinkObject, NodeObject } from "force-graph";
+import ForceGraph, { NodeObject } from "force-graph";
 import type { Event } from "./api";
-import { GraphData, Hideable, Renderable } from "./graph";
+import { EventProcessor } from "./eventProcessor";
+import { GraphData, Mapper, Updater } from "./graph";
+import { NodeModel } from "./models";
+import { NodePainter, TextRenderer } from "./paint/index";
 
-const graphData = new GraphData();
+const graph = new GraphData();
+const updater = new Updater(graph);
+const mapper = new Mapper();
+const processor = new EventProcessor(graph, mapper, updater);
+
+const nodePainter = new NodePainter(
+  new TextRenderer(),
+  new TextRenderer({ font: `FontAwesome`, size: 12 }),
+);
 
 const forceGraph = ForceGraph();
 forceGraph(document.getElementById("graph"))
   .nodeLabel("tooltip")
-  .nodeCanvasObject((node: NodeObject, ctx, scale) =>
-    (node as Renderable).render(ctx, scale)
-  )
-  .nodePointerAreaPaint(
-    (
-      node: NodeObject,
-      color: string,
-      ctx: CanvasRenderingContext2D,
-      scale: number
-    ) => (node as Renderable).paintInteractionArea(color, ctx, scale)
-  )
-  .nodeVisibility((node: NodeObject) => (node as Hideable).isVisible())
-  .linkVisibility((link: LinkObject) => (link as Hideable).isVisible());
+  .nodeCanvasObject((node: NodeObject, ctx, scale) => nodePainter.paint(node as NodeModel, ctx, scale))
+  .nodePointerAreaPaint((node: NodeObject, color, ctx) => nodePainter.paintInteractionArea(node as NodeModel, color, ctx));
 
 let debounceHandle: any | null;
 
 function update() {
-  const data = graphData.data();
+  const data = graph.data();
   console.debug("refreshing graph:", data);
   forceGraph.graphData(data);
   debounceHandle = null;
@@ -34,7 +34,7 @@ const es = new EventSource("/api/events");
 es.addEventListener("message", ({ data }: { data: string; }) => {
   const event = JSON.parse(data) as Event;
   console.debug("event", event);
-  if (graphData.process(event)) {
+  if (processor.process(event)) {
     if (debounceHandle) {
       clearTimeout(debounceHandle);
     }

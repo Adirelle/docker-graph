@@ -3,7 +3,6 @@ package containers
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -23,12 +22,17 @@ type (
 		Name      string
 		Image     string
 		Status    Status
-		Healthy   string `json:",omitempty"`
-		Service   string `json:",omitempty"`
-		Project   string `json:",omitempty"`
+		Healthy   string   `json:",omitempty"`
+		Service   string   `json:",omitempty"`
+		Project   *Project `json:",omitempty"`
 		Networks  map[string]*Network
 		Mounts    []Mount
 		Ports     map[string]Port
+	}
+
+	Project struct {
+		Name       string
+		WorkingDir string
 	}
 
 	Network struct {
@@ -107,25 +111,24 @@ func (c *Container) Init(container types.ContainerJSON) {
 	}
 	c.Name = container.Name[1:]
 	c.Image = container.Config.Image
-	c.Project = container.Config.Labels["com.docker.compose.project"]
-	c.Service = container.Config.Labels["com.docker.compose.service"]
-	c.readMounts(container.Config.Labels["com.docker.compose.project.working_dir"], container.Mounts)
+	if project, ok := container.Config.Labels["com.docker.compose.project"]; ok {
+		c.Project = &Project{
+			Name:       project,
+			WorkingDir: container.Config.Labels["com.docker.compose.project.working_dir"],
+		}
+	} else {
+		c.Project = nil
+	}
+	c.readMounts(container.Mounts)
 	c.readPorts(container.NetworkSettings.Ports)
 }
 
-func (c *Container) readMounts(baseDir string, mounts []types.MountPoint) {
-	if baseDir != "" {
-		baseDir += "/"
-	}
+func (c *Container) readMounts(mounts []types.MountPoint) {
 	for _, mount := range mounts {
-		src := mount.Source
-		if mount.Type == "bind" && strings.HasPrefix(src, baseDir) {
-			src = src[len(baseDir):]
-		}
 		c.Mounts = append(c.Mounts, Mount{
 			Type:        string(mount.Type),
 			Name:        mount.Name,
-			Source:      src,
+			Source:      mount.Source,
 			Destination: mount.Destination,
 			ReadWrite:   mount.RW,
 		})
