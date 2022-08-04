@@ -27,8 +27,17 @@ services:
   proxy:
     image: caddy:2
     restart: unless-stopped
+    command:
+      - /bin/sh
+      - "-euc"
+      - |
+        mkdir -m 0700 -p /certs
+        wget -q http://traefik.me/fullchain.pem -O /certs/fullchain.pem
+        wget -q http://traefik.me/privkey.pem -O /certs/privkey.pem
+        exec caddy run --watch --config /etc/caddy/Caddyfile
     ports:
-      - "127.0.0.1:8080:80/tcp"
+      - "127.0.0.1:80:80/tcp"
+      - "127.0.0.1:443:443/tcp"
     volumes:
       - ./dev/docker/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./public:/var/www:ro

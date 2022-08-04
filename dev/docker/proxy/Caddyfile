@@ -1,19 +1,22 @@
 {
-	auto_https off
 	log {
 		output stderr
 		format console
 	}
 }
 
-:80 {
+www.traefik.me {
 	log {
 		output stdout
 		format console
 	}
 
+	tls /certs/fullchain.pem /certs/privkey.pem
+
 	handle /api/* {
-		reverse_proxy backend:8080
+		reverse_proxy backend:8080 {
+			flush_interval 0
+		}
 	}
 
 	handle {
