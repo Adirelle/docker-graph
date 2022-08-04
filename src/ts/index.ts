@@ -15,6 +15,10 @@ import { consumeEvents, debouncer, Status } from "./utils";
     console.error("could not find graph element");
     return;
   }
+  if (statusElem == null) {
+    console.error("could not find status element");
+    return;
+  }
 
   const graph = new GraphData();
   const processor = new EventProcessor(() => new GraphUpdater(graph));
@@ -46,10 +50,8 @@ import { consumeEvents, debouncer, Status } from "./utils";
       }
     },
     (status: Status) => {
-      if (statusElem) {
-        const icon = status == 'open' ? 'wifi' : 'wifi-slash';
-        statusElem.className = `fa-solid fa-${icon}`;
-      }
+      const icon = status == 'open' ? 'wifi' : 'wifi-slash';
+      statusElem.className = `fas fa-${icon}`;
     }
   );
 })(

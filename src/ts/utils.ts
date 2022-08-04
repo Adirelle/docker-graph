@@ -14,7 +14,6 @@ export function* iterFlatMap<T, U>(inputs: Iterable<T>, f: (input: T) => Iterabl
   }
 }
 
-
 const idRegexp = /^[0-9a-f]{64}$/;
 
 export function isID(what: string): boolean {
@@ -85,16 +84,19 @@ export function consumeEvents(sourceURL: string, handler: (ev: MessageEvent) => 
   let restartHandle: number | null = null;
   const run = () => {
     const source = new EventSource(sourceURL);
+    const starting = Date.now();
+    statusHandler('closed');
+    restartHandle = null;
+
     source.addEventListener("message", handler);
-    source.addEventListener("open", () => {
-      statusHandler('open');
-      restartHandle = null;
-    });
-    source.addEventListener("error", () => {
+    source.addEventListener("open", () => statusHandler('open'));
+    source.addEventListener("error", (ev: Event) => {
       source.close();
       statusHandler('closed');
-      if (!restartHandle) {
-        restartHandle = setTimeout(run, 10);
+      if (restartHandle === null) {
+        const since = Date.now() - starting;
+        const delay = Math.max(1000 - since, 0);
+        restartHandle = setTimeout(run, delay);
       }
     });
   };
