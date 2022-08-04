@@ -32,7 +32,7 @@ func (f BasicFactory) CreateConn() (Connection, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Info("opened connection", log.Ctx{
+	Log.Info("opened connection", log.Ctx{
 		"host":            client.DaemonHost(),
 		"api_version":     ping.APIVersion,
 		"builder_version": ping.BuilderVersion,

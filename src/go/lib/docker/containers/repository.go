@@ -6,9 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adirelle/docker-graph/src/go/lib/api"
 	"github.com/adirelle/docker-graph/src/go/lib/docker/connections"
-	myEvents "github.com/adirelle/docker-graph/src/go/lib/docker/events"
-	"github.com/adirelle/docker-graph/src/go/lib/utils"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
 	log "github.com/inconshreveable/log15"
@@ -22,17 +21,17 @@ var (
 
 type (
 	Repository struct {
-		Emitter     *myEvents.Emitter
 		ConnFactory connections.Factory
 
 		conn       connections.Connection
+		dispatcher Dispatcher
 		messages   chan events.Message
-		containers map[ID]*tracker
+		containers map[ID]*Container
 	}
 
-	tracker struct {
-		Container
-		utils.Debouncer
+	Dispatcher interface {
+		Dispatch(value api.Event, ctx context.Context) error
+		OnNewSubscriber(hook func(chan<- api.Event))
 	}
 )
 
@@ -43,14 +42,14 @@ var (
 	InspectTimeout = 200 * time.Millisecond
 )
 
-func NewRepository(emitter *myEvents.Emitter, connFactory connections.Factory) (r *Repository) {
+func NewRepository(dispatcher Dispatcher, connFactory connections.Factory) (r *Repository) {
 	r = &Repository{
-		Emitter:     emitter,
+		dispatcher:  dispatcher,
 		ConnFactory: connFactory,
 		messages:    make(chan events.Message, 50),
-		containers:  make(map[ID]*tracker, 10),
+		containers:  make(map[ID]*Container, 10),
 	}
-	emitter.OnNewReceiver = r.primeNewReceiver
+	dispatcher.OnNewSubscriber(r.primeNewSubscriber)
 	return r
 }
 
@@ -83,106 +82,74 @@ func (r *Repository) Process(msg events.Message) {
 	r.messages <- msg
 }
 
-func (r *Repository) primeNewReceiver(receiver myEvents.Receiver) {
-	ctx := context.Background()
-	for _, t := range r.containers {
-		if !t.UpdatedAt.IsZero() {
-			event := myEvents.MakeContainerUpdatedEvent(t.ID, t.UpdatedAt, t.Container)
-			receiver.Receive(event, ctx)
-		}
+func (r *Repository) primeNewSubscriber(c chan<- api.Event) {
+	Log.Debug("new subscriber", "c", c, "#ctn", len(r.containers))
+	for _, ctn := range r.containers {
+		Log.Debug("sending container", "ctn", ctn)
+		c <- &ContainerUpdated{ctn.LastUpdateTime(), ctn}
 	}
 }
 
 func (r *Repository) handleMessage(msg events.Message, ctx context.Context) error {
 	logger := Log.New(log.Ctx{"id": msg.ID})
-	msgLogger := logger.New(log.Ctx{
-		"type":   msg.Type,
-		"action": msg.Action,
-	})
-	subCtx := context.WithValue(ctx, LoggerKey, logger)
-	if r.doHandleMessage(msg, subCtx) {
-		msgLogger.Debug("handled message")
-	} else {
-		msgLogger.Debug("ignored message")
-	}
-	return nil
-}
-
-func (r *Repository) doHandleMessage(msg events.Message, ctx context.Context) bool {
+	ctx = context.WithValue(ctx, LoggerKey, logger)
 	when := time.Unix(0, msg.TimeNano)
 	switch msg.Type {
 	case "container":
 		if msg.Action == "destroy" {
 			r.removeContainer(ID(msg.ID), when, ctx)
-			return true
+		} else if msg.Action == "attach" || msg.Action == "detach" || strings.HasPrefix(msg.Action, "exec_") {
+			return nil
+		} else {
+			r.updateContainer(ID(msg.ID), when, ctx)
 		}
-		if msg.Action == "attach" || msg.Action == "detach" || strings.HasPrefix(msg.Action, "exec_") {
-			return false
-		}
-		r.updateContainer(ID(msg.ID), when, ctx)
-		return true
 	case "network":
 		if msg.Action == "connect" || msg.Action == "disconnect" {
 			r.updateContainer(ID(msg.Actor.Attributes["containers"]), when, ctx)
-			return true
 		}
 	}
-	return false
+	return nil
 }
 
 func (r *Repository) updateContainer(id ID, when time.Time, ctx context.Context) {
 	if id == "" {
 		return
 	}
-	t, found := r.containers[id]
-	if !found {
-		t = &tracker{
-			Container: Container{ID: id},
-			Debouncer: utils.Debouncer{
-				Func: func() {
-					// inspectCtx, cancel := context.WithTimeout(
-					// 	context.WithValue(context.Background(), LoggerKey, Log.New("id", id)),
-					// 	5*time.Second,
-					// )
-					// defer cancel()
-					// r.inspectContainer(t, when, inspectCtx)
-				},
-				Delay: InspectTimeout,
-			},
-		}
-		r.containers[id] = t
-		ctx.Value(LoggerKey).(log.Logger).Info("added container")
-	}
-	//t.Trigger()
-	r.inspectContainer(t, when, ctx)
-}
 
-func (r *Repository) inspectContainer(t *tracker, when time.Time, ctx context.Context) {
-	Log.Debug("inspecting container", "id", t.ID)
-	data, err := r.conn.ContainerInspect(ctx, string(t.ID))
+	logger := ctx.Value(LoggerKey).(log.Logger)
+	ctn, found := r.containers[id]
+	if !found {
+		ctn = &Container{ID: id, CreatedAt: when}
+		r.containers[id] = ctn
+		logger.Debug("added container")
+	} else {
+		logger.Debug("updating container")
+	}
+
+	data, err := r.conn.ContainerInspect(ctx, string(id))
 	if err != nil {
 		if !client.IsErrNotFound(err) {
-			Log.Error("errror inspecting container", "id", t.ID, "error", err)
+			logger.Error("errror inspecting container", "error", err)
 		}
 		return
 	}
-	Log.Debug("updating container", "id", t.ID)
-	t.Update(data, when)
-	if t.IsRemoved() {
-		r.removeContainer(t.ID, when, ctx)
+
+	ctn.UpdateFrom(data)
+	if ctn.Status.IsRemoved() {
+		r.removeContainer(id, when, ctx)
 	} else {
-		r.Emitter.Emit(myEvents.MakeContainerUpdatedEvent(t.ID, when, t.Container))
+		ctn.UpdatedAt = when
+		r.dispatcher.Dispatch(&ContainerUpdated{when, ctn}, ctx)
 	}
 }
 
 func (r *Repository) removeContainer(id ID, when time.Time, ctx context.Context) {
-	t, found := r.containers[id]
+	_, found := r.containers[id]
 	if !found {
 		return
 	}
-	t.Stop()
 	delete(r.containers, id)
-	t.Container.RemovedAt = when
-	Log.Debug("removed container")
-	r.Emitter.Emit(myEvents.MakeContainerRemovedEvent(id, when))
+	logger := ctx.Value(LoggerKey).(log.Logger)
+	logger.Debug("removed container")
+	r.dispatcher.Dispatch(&ContainerRemoved{when, string(id)}, ctx)
 }

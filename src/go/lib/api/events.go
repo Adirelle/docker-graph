@@ -2,12 +2,10 @@ package api
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 
-	"github.com/adirelle/docker-graph/src/go/lib/docker/events"
 	"github.com/gofiber/fiber/v2"
 
 	log "github.com/inconshreveable/log15"
@@ -15,16 +13,20 @@ import (
 
 type (
 	API struct {
-		source *events.Emitter
+		source EventSource
 	}
 
-	receiver struct {
-		events chan<- events.Event
-		log.Logger
+	EventSource interface {
+		Subscribe() (c <-chan Event, cancel func())
+	}
+
+	Event interface {
+		ID() string
+		Data() any
 	}
 )
 
-func NewAPI(source *events.Emitter) *API {
+func NewAPI(source EventSource) *API {
 	return &API{source}
 }
 
@@ -40,50 +42,45 @@ func (a *API) streamEvents(ctx *fiber.Ctx) error {
 	ctx.Set("Connection", "keep-alive")
 	ctx.Set("Transfer-Encoding", "chunked")
 
+	logger.Debug("starting event stream")
+
 	ctx.Context().SetBodyStreamWriter(func(output *bufio.Writer) {
 		var err error
 		defer func() {
 			if err != nil && err != io.EOF {
 				logger.Error("streaming error", err)
+			} else {
+				logger.Debug("event stream ended")
 			}
 		}()
 
-		events := make(chan events.Event, 5)
-		defer close(events)
-
-		rcv := receiver{events, logger}
-		done := a.source.Subscribe(rcv)
+		events, done := a.source.Subscribe()
 		defer done()
 
+		logger.Debug("waiting for events")
 		enc := json.NewEncoder(output)
 		for event := range events {
-			if _, err = fmt.Fprintf(output, "id:%d\ndata:", event.Time.UnixNano()); err != nil {
-				return
+			logger.Debug("sending events", "event", event)
+			if err := sendEvent(output, enc, event); err != nil {
+				logger.Error("error sending event", "event", event, "error", err)
+			} else {
+				logger.Debug("sent event", "event", event)
 			}
-			if err = enc.Encode(event); err != nil {
-				return
-			}
-			if _, err = output.WriteString("\n\n"); err != nil {
-				return
-			}
-			if err = output.Flush(); err != nil {
-				return
-			}
-			logger.Debug("sent event", "event", event)
 		}
 	})
 
 	return nil
 }
 
-func (r receiver) Receive(event events.Event, ctx context.Context) {
-	defer func() {
-		if err := recover(); err != nil {
-			r.Logger.Error("panic in receiver", "error", err)
-		}
-	}()
-	select {
-	case r.events <- event:
-	case <-ctx.Done():
+func sendEvent(output *bufio.Writer, enc *json.Encoder, event Event) (err error) {
+	if _, err = fmt.Fprintf(output, "id:%s\ndata:", event.ID()); err != nil {
+		return
 	}
+	if err = enc.Encode(event.Data()); err != nil {
+		return
+	}
+	if _, err = output.WriteString("\n\n"); err != nil {
+		return
+	}
+	return output.Flush()
 }

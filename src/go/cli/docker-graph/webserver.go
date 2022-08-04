@@ -93,9 +93,9 @@ func (s *WebServer) logRequest(c *fiber.Ctx) (err error) {
 	err = c.Next()
 
 	if err != nil {
-		s.Logger.Error("request", "error", err)
+		logger.Error("request", "error", err)
 	} else {
-		s.Logger.Info("request", "status", c.Response().StatusCode())
+		logger.Info("request", "status", c.Response().StatusCode())
 	}
 
 	return

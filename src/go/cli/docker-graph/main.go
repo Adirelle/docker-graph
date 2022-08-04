@@ -10,9 +10,9 @@ import (
 	"github.com/adirelle/docker-graph/src/go/lib/api"
 	"github.com/adirelle/docker-graph/src/go/lib/docker/connections"
 	"github.com/adirelle/docker-graph/src/go/lib/docker/containers"
-	"github.com/adirelle/docker-graph/src/go/lib/docker/events"
 	"github.com/adirelle/docker-graph/src/go/lib/docker/listeners"
 	"github.com/adirelle/docker-graph/src/go/lib/logging"
+	"github.com/adirelle/docker-graph/src/go/lib/utils"
 	"github.com/docker/docker/client"
 	log "github.com/inconshreveable/log15"
 	"github.com/thejerf/suture/v4"
@@ -24,10 +24,11 @@ var (
 
 func main() {
 	webLogger := Log.New(logging.ModuleKey, "webserver")
+	utils.Log = Log.New(logging.ModuleKey, "dispatcher")
+
 	dockerLogger := Log.New(logging.ModuleKey, "docker")
 	connections.Log = dockerLogger.New(logging.ModuleKey, "connections")
 	containers.Log = dockerLogger.New(logging.ModuleKey, "containers")
-	events.Log = dockerLogger.New(logging.ModuleKey, "events")
 	listeners.Log = dockerLogger.New(logging.ModuleKey, "listeners")
 
 	logConfig := logging.Config{
@@ -46,12 +47,12 @@ func main() {
 		},
 	})
 
-	eventEmitter := events.NewEmitter()
-	spv.Add(eventEmitter)
+	dispatcher := utils.NewDispatcher[api.Event]()
+	spv.Add(dispatcher)
 
 	connFactory := connections.MakeBasicFactory(client.FromEnv)
 
-	containerRepo := containers.NewRepository(eventEmitter, connFactory)
+	containerRepo := containers.NewRepository(dispatcher, connFactory)
 	spv.Add(containerRepo)
 
 	listener := listeners.NewListener(connFactory, containerRepo)
@@ -60,7 +61,7 @@ func main() {
 	webserver := NewWebServer(webLogger)
 	spv.Add(webserver)
 
-	eventAPI := api.NewAPI(eventEmitter)
+	eventAPI := api.NewAPI(dispatcher)
 	eventAPI.MountInto(webserver.App.Group("/api"))
 
 	ctx, _ := signal.NotifyContext(context.Background(), os.Kill, os.Interrupt, syscall.SIGHUP)
