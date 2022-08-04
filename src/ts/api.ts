@@ -35,6 +35,12 @@ export interface Container {
   Ports?: Ports;
 }
 
+export interface Image {
+  Registry: string;
+  Name: string;
+  Tag: string;
+}
+
 export interface Project {
   Name: string;
   WorkingDir: string;

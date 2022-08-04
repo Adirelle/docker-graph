@@ -1,4 +1,4 @@
-import { Project } from "./api";
+import { Image, Project } from './api';
 
 export function* iterMap<T, U>(inputs: Iterable<T>, f: (input: T) => U): Iterable<U> {
   for (const input of inputs) {
@@ -54,6 +54,16 @@ export function shortPath(path: string, project: Project | undefined): string {
   }
   return path;
 }
+
+
+export function parseImage(image: string): Image {
+  const [fullName, tag] = image.split(":", 2);
+  const parts = fullName.split("/");
+  const registry = (parts.length > 0 && parts[0].indexOf(".") >= 0 && parts.shift());
+  const Name = parts.join("/");
+  return { Name, Registry: registry || 'docker.io', Tag: tag || "latest" };
+}
+
 
 export function debouncer(delay: number, proc: () => void): () => void {
   let handle: number | null;

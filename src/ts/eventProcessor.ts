@@ -1,6 +1,6 @@
 import { Container, Event } from "./api";
 import { NodeModel } from "./models";
-import { shortName, shortPath } from "./utils";
+import { parseImage, shortName, shortPath } from "./utils";
 
 export type NodeUpdateFunc = (node: NodeModel, updater: Updater) => void;
 
@@ -34,7 +34,12 @@ export class EventProcessor {
   private updateContainer(node: NodeModel, ctn: Container, updater: Updater): void {
     node.type = "container";
     node.label = shortName(ctn.Name || ctn.ID, ctn.Project);
-    node.tooltip = `container: ${ctn.Name}<br/>id: ${ctn.ID}<br/>status: ${ctn.Status}`;
+    node.tooltip = makeTooltip(
+      "container", ctn.Name,
+      "id", ctn.ID,
+      "status", ctn.Status,
+      "project", ctn.Project?.Name || "none"
+    );
     switch (ctn.Status) {
       case 'running':
         node.color = '#070';
@@ -50,7 +55,14 @@ export class EventProcessor {
     const imageID = `img:${ctn.Image}`;
     updater.updateLink(ctn.ID, imageID, (node) => {
       node.type = "image";
-      node.label = shortName(ctn.Image, ctn.Project);
+      const { Name, Registry, Tag } = parseImage(ctn.Image);
+      node.label = shortName(Name, ctn.Project);
+      node.tooltip = makeTooltip(
+        "image", ctn.Image,
+        "registry", Registry,
+        "name", Name,
+        "tag", Tag
+      );
     });
 
     for (const net of Object.values(ctn.Networks || {})) {
@@ -67,12 +79,24 @@ export class EventProcessor {
           updater.updateLink(ctn.ID, mount.Source, (node) => {
             node.type = "bindMount";
             node.label = shortPath(mount.Source, ctn.Project);
+            node.tooltip = makeTooltip(
+              "bind mount", mount.Source,
+              "source", mount.Source,
+              "destination", mount.Destination,
+              "writable?", mount.ReadWrite ? "yes" : "no"
+            );
           });
           break;
         case "volume":
           updater.updateLink(ctn.ID, mount.Source, (node) => {
             node.type = "volume";
             node.label = shortName(mount.Name, ctn.Project);
+            node.tooltip = makeTooltip(
+              "volume", mount.Name,
+              "source", mount.Source,
+              "destination", mount.Destination,
+              "writable?", mount.ReadWrite ? "yes" : "no"
+            );
           });
           break;
       }
@@ -90,4 +114,12 @@ export class EventProcessor {
       });
     }
   }
+}
+
+function makeTooltip(...parts: string[]): string {
+  const lines = [];
+  for (let i = 0, l = parts.length; i < l; i += 2) {
+    lines.push(`${parts[i]}: ${parts[i + 1]}`);
+  }
+  return lines.join("<br/>");
 }
