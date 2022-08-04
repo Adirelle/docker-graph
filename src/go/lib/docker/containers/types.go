@@ -73,33 +73,18 @@ func (c *Container) IsRemoved() bool {
 	return !c.RemovedAt.IsZero() || c.Status.IsRemoved()
 }
 
-func (c *Container) Update(data types.ContainerJSON, when time.Time) (changed bool) {
+func (c *Container) Update(data types.ContainerJSON, when time.Time) {
 	if c.CreatedAt.IsZero() {
 		c.Init(data)
-		changed = true
 	}
-	if status := Status(data.State.Status); c.Status != status {
-		c.Status = status
-		changed = true
-		if status.IsRemoved() {
-			c.RemovedAt = when
-		}
-	}
-	healthy := ""
+	c.Status = Status(data.State.Status)
 	if c.Status.IsRunning() && data.State.Health != nil {
-		healthy = data.State.Health.Status
+		c.Healthy = data.State.Health.Status
+	} else {
+		c.Healthy = ""
 	}
-	if c.Healthy != healthy {
-		c.Healthy = healthy
-		changed = true
-	}
-	if c.updateNetworks(data.NetworkSettings.Networks) {
-		changed = true
-	}
-	if changed {
-		c.UpdatedAt = when
-	}
-	return changed
+	c.updateNetworks(data.NetworkSettings.Networks)
+	c.UpdatedAt = when
 }
 
 func (c *Container) Init(container types.ContainerJSON) {
@@ -165,13 +150,12 @@ func getPortBinding(something interface{}) (*nat.PortBinding, bool) {
 	return nil, false
 }
 
-func (c *Container) updateNetworks(networks map[string]*network.EndpointSettings) (changed bool) {
+func (c *Container) updateNetworks(networks map[string]*network.EndpointSettings) {
 	if c.Networks == nil && len(networks) > 0 {
 		c.Networks = make(map[string]*Network, len(networks))
-		changed = true
-	} else if len(networks) == 0 && c.Networks != nil {
+	} else if len(networks) == 0 {
 		c.Networks = nil
-		return true
+		return
 	}
 	for key, netData := range networks {
 		dest, found := c.Networks[key]
@@ -179,21 +163,14 @@ func (c *Container) updateNetworks(networks map[string]*network.EndpointSettings
 			dest = &Network{}
 			c.Networks[key] = dest
 			dest.Name = key
-			changed = true
 		}
-		if dest.ID != netData.NetworkID {
-			dest.ID = netData.NetworkID
-			changed = true
-		}
+		dest.ID = netData.NetworkID
 	}
 	for key := range c.Networks {
 		if _, found := networks[key]; !found {
 			delete(c.Networks, key)
-			changed = true
 		}
 	}
-
-	return
 }
 
 func (i ID) String() string {

@@ -71,7 +71,7 @@ func (m *Listener) Serve(ctx context.Context) error {
 }
 
 func (m *Listener) prime(ctx context.Context, conn connections.Connection) error {
-	containers, err := conn.ContainerList(ctx, types.ContainerListOptions{All: true, Since: "1"})
+	containers, err := conn.ContainerList(ctx, types.ContainerListOptions{All: true})
 	if err != nil {
 		return err
 	}

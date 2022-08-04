@@ -140,12 +140,12 @@ func (r *Repository) updateContainer(id ID, when time.Time, ctx context.Context)
 			Container: Container{ID: id},
 			Debouncer: utils.Debouncer{
 				Func: func() {
-					inspectCtx, cancel := context.WithTimeout(
-						context.WithValue(context.Background(), LoggerKey, Log.New("id", id)),
-						5*time.Second,
-					)
-					defer cancel()
-					r.inspectContainer(t, when, inspectCtx)
+					// inspectCtx, cancel := context.WithTimeout(
+					// 	context.WithValue(context.Background(), LoggerKey, Log.New("id", id)),
+					// 	5*time.Second,
+					// )
+					// defer cancel()
+					// r.inspectContainer(t, when, inspectCtx)
 				},
 				Delay: InspectTimeout,
 			},
@@ -153,7 +153,8 @@ func (r *Repository) updateContainer(id ID, when time.Time, ctx context.Context)
 		r.containers[id] = t
 		ctx.Value(LoggerKey).(log.Logger).Info("added container")
 	}
-	t.Trigger()
+	//t.Trigger()
+	r.inspectContainer(t, when, ctx)
 }
 
 func (r *Repository) inspectContainer(t *tracker, when time.Time, ctx context.Context) {
@@ -166,10 +167,10 @@ func (r *Repository) inspectContainer(t *tracker, when time.Time, ctx context.Co
 		return
 	}
 	Log.Debug("updating container", "id", t.ID)
-	changed := t.Update(data, when)
+	t.Update(data, when)
 	if t.IsRemoved() {
 		r.removeContainer(t.ID, when, ctx)
-	} else if changed {
+	} else {
 		r.Emitter.Emit(myEvents.MakeContainerUpdatedEvent(t.ID, when, t.Container))
 	}
 }

@@ -20,6 +20,7 @@ type (
 
 	receiver struct {
 		events chan<- events.Event
+		log.Logger
 	}
 )
 
@@ -50,7 +51,7 @@ func (a *API) streamEvents(ctx *fiber.Ctx) error {
 		events := make(chan events.Event, 5)
 		defer close(events)
 
-		rcv := receiver{events}
+		rcv := receiver{events, logger}
 		done := a.source.Subscribe(rcv)
 		defer done()
 
@@ -76,6 +77,11 @@ func (a *API) streamEvents(ctx *fiber.Ctx) error {
 }
 
 func (r receiver) Receive(event events.Event, ctx context.Context) {
+	defer func() {
+		if err := recover(); err != nil {
+			r.Logger.Error("panic in receiver", "error", err)
+		}
+	}()
 	select {
 	case r.events <- event:
 	case <-ctx.Done():
