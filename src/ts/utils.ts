@@ -54,3 +54,39 @@ export function shortPath(path: string, project: Project | undefined): string {
   }
   return path;
 }
+
+export function debouncer(delay: number, proc: () => void): () => void {
+  let handle: number | null;
+  let callback = () => {
+    handle = null;
+    proc();
+  };
+  return () => {
+    if (handle) {
+      clearTimeout(handle);
+    }
+    handle = setTimeout(callback, delay);
+  };
+}
+
+export type Status = 'open' | 'closed';
+
+export function consumeEvents(sourceURL: string, handler: (ev: MessageEvent) => void, statusHandler: (st: Status) => void = () => null): void {
+  let restartHandle: number | null = null;
+  const run = () => {
+    const source = new EventSource(sourceURL);
+    source.addEventListener("message", handler);
+    source.addEventListener("open", () => {
+      statusHandler('open');
+      restartHandle = null;
+    });
+    source.addEventListener("error", () => {
+      source.close();
+      statusHandler('closed');
+      if (!restartHandle) {
+        restartHandle = setTimeout(run, 10);
+      }
+    });
+  };
+  run();
+}
