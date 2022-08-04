@@ -3,7 +3,13 @@ services:
   backend:
     build: dev/docker/backend
     restart: unless-stopped
-    init: true
+    working_dir: /src
+    command:
+      - /bin/bash
+      - "-euc"
+      - |
+        exec entr -n -r -d go run -tags dev ./src/go/cli/docker-graph -bind 0.0.0.0:8080 -logStderr debug -logColor always < <(find src/go)
+    stop_signal: SIGTERM
     volumes:
       - .:/src:ro
       - backend_cache:/go
@@ -13,14 +19,13 @@ services:
     image: jarredsumner/bun:edge
     restart: unless-stopped
     working_dir: /src
-    init: true
     command:
       - /bin/sh
-      - "-c"
+      - "-euc"
       - |
         bun install;
         bun bun -c bunfig.toml;
-        bun dev -c bunfig.toml;
+        exec bun dev -c bunfig.toml
     volumes:
       - .:/src
 
